@@ -116,8 +116,6 @@ def run_demo():
     if output:
         print(output)
         
-    1/0
-        
     outline = ('Command --bprd (breakpoint retrieval and definition) identifies loci likely to be reflection points in inverted duplications.')
     print(outline)
     bash_command = ('\tpython mugio.py -bprd -f demo/demo.fastq -s demo/demo.sam -bam demo/demo.bam -o demo_output/demo_bprd')
