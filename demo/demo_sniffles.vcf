@@ -1,0 +1,53 @@
+##fileformat=VCFv4.1
+##source=Sniffles
+##fileDate=20190904
+##contig=<ID=NC_001133.9,length=230218>
+##contig=<ID=NC_001134.8,length=813184>
+##contig=<ID=NC_001135.5,length=316620>
+##contig=<ID=NC_001136.10,length=1531933>
+##contig=<ID=NC_001137.3,length=576874>
+##contig=<ID=NC_001138.5,length=270161>
+##contig=<ID=NC_001139.9,length=1090940>
+##contig=<ID=NC_001140.6,length=562643>
+##contig=<ID=NC_001141.2,length=439888>
+##contig=<ID=NC_001142.9,length=745751>
+##contig=<ID=NC_001143.9,length=670191>
+##contig=<ID=NC_001144.5,length=1078177>
+##contig=<ID=NC_001145.3,length=924431>
+##contig=<ID=NC_001146.8,length=784333>
+##contig=<ID=NC_001147.6,length=1091291>
+##contig=<ID=NC_001148.4,length=948066>
+##contig=<ID=NC_001224.1,length=85779>
+##ALT=<ID=DEL,Description="Deletion">
+##ALT=<ID=DUP,Description="Duplication">
+##ALT=<ID=INV,Description="Inversion">
+##ALT=<ID=INVDUP,Description="InvertedDUP with unknown boundaries">
+##ALT=<ID=TRA,Description="Translocation">
+##ALT=<ID=INS,Description="Insertion">
+##INFO=<ID=CHR2,Number=1,Type=String,Description="Chromosome for END coordinate in case of a translocation">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the structural variant">
+##INFO=<ID=MAPQ,Number=1,Type=Integer,Description="Median mapping quality of paired-ends">
+##INFO=<ID=RE,Number=1,Type=Integer,Description="read support">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=PRECISE,Number=0,Type=Flag,Description="Precise structural variation">
+##INFO=<ID=UNRESOLVED,Number=0,Type=Flag,Description="An insertion that is longer than the read and thus we cannot predict the full size.">
+##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Length of the SV">
+##INFO=<ID=REF_strand,Number=2,Type=Integer,Description="Length of the SV">
+##INFO=<ID=SVMETHOD,Number=1,Type=String,Description="Type of approach used to detect SV">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=SEQ,Number=1,Type=String,Description="Extracted sequence from the best representative read.">
+##INFO=<ID=STD_quant_start,Number=A,Type=Float,Description="STD of the start breakpoints across the reads.">
+##INFO=<ID=STD_quant_stop,Number=A,Type=Float,Description="STD of the stop breakpoints across the reads.">
+##INFO=<ID=Kurtosis_quant_start,Number=A,Type=Float,Description="Kurtosis value of the start breakpoints across the reads.">
+##INFO=<ID=Kurtosis_quant_stop,Number=A,Type=Float,Description="Kurtosis value of the stop breakpoints across the reads.">
+##INFO=<ID=SUPTYPE,Number=A,Type=String,Description="Type by which the variant is supported.(SR,ALN,NR)">
+##INFO=<ID=STRANDS,Number=A,Type=String,Description="Strand orientation of the adjacency in BEDPE format (DEL:+-, DUP:-+, INV:++/--)">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency.">
+##INFO=<ID=ZMW,Number=A,Type=Integer,Description="Number of ZMWs (Pacbio) supporting SV.">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=DR,Number=1,Type=Integer,Description="# high-quality reference reads">
+##FORMAT=<ID=DV,Number=1,Type=Integer,Description="# high-quality variant reads">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	/scratch/ps163/ps163/Project_erisapfel/ont_DGY1735/structural_variants/DGY1735.md.bam
+NC_001143.9	479635	9	N	<INVDUP>	.	PASS	IMPRECISE;SVMETHOD=Snifflesv1.0.11;CHR2=NC_001143.9;END=480015;STD_quant_start=0.267261;STD_quant_stop=201.827189;Kurtosis_quant_start=9.253417;Kurtosis_quant_stop=0.789262;SVTYPE=INVDUP;SUPTYPE=SR;SVLEN=380;STRANDS=--;RE=29	GT:DR:DV	./.:.:29
+NC_001143.9	644648	10	N	<INVDUP>	.	PASS	IMPRECISE;SVMETHOD=Snifflesv1.0.11;CHR2=NC_001143.9;END=644896;STD_quant_start=2845.173598;STD_quant_stop=33.941125;Kurtosis_quant_start=0.306411;Kurtosis_quant_stop=6.517024;SVTYPE=INVDUP;SUPTYPE=SR;SVLEN=248;STRANDS=++;RE=10	GT:DR:DV	./.:.:10
+NC_001143.9	643354	11	N	<INVDUP>	.	PASS	IMPRECISE;SVMETHOD=Snifflesv1.0.11;CHR2=NC_001143.9;END=644895;STD_quant_start=513.249647;STD_quant_stop=9.777525;Kurtosis_quant_start=-0.913382;Kurtosis_quant_stop=-0.464466;SVTYPE=INVDUP;SUPTYPE=SR;SVLEN=1541;STRANDS=++;RE=11	GT:DR:DV	./.:.:11
