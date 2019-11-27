@@ -1,7 +1,7 @@
 # mugio
  Inverted Repeat Junction identifier for use with ONT (MinION) sequencing.
 
- Mugio is intended to aid in the identification of potential inverted repeats in seqeuncing data from Oxford-Nanopore Technologies Nanopore sequencing platform (MinION, PromethION, GridION, etc.).
+ Mugio is intended to aid in the identification of potential inverted repeats in seqeuncing data from Oxford-Nanopore Technologies Nanopore seqeuncing platform (MinION, PromethION, GridION, etc.).
  
 #### Citation Placeholder
 
