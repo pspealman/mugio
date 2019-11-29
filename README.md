@@ -3,7 +3,12 @@
 
  Mugio is intended to aid in the identification of potential inverted repeats in seqeuncing data from Oxford-Nanopore Technologies Nanopore seqeuncing platform (MinION, PromethION, GridION, etc.).
  
-#### Citation Placeholder
+#### Citation
+Preprint:
+
+Nanopore sequencing undergoes catastrophic sequence failure at inverted duplicated DNA sequences
+Pieter Spealman, Jaden Burrell,  David Gresham
+doi: https://doi.org/10.1101/852665
 
 ## Requirements
 ### Materials 
