@@ -4,6 +4,17 @@ Created on Mon May  6 21:02:55 2019
 # mugio - low as a verb
 
 Version 1.0 - 11.20.19 - Public Release - (Mind Television)
+Version 1.1 - 12.21.19 - Public Release - (Capital Stain)
+    _x_ Added coverage_calculator command
+    _x_ Added build_region command
+    _x_ Added get_inverted command
+    _x_ Added uid_pull option for plot_phred
+    _x_ Added bam file generation to --evaluate command
+    _x_ Added filter_telomeres, require_stars options to --bprd command
+    
+Version 1.2 - 01.29.20 - Public Release - (The past has no power over me anymore.)
+    _x_ Added filter_multimappers, require_close_inversion options to --bprd command
+    _x_ Added tracert to --evaluate command 
     
 @author: Pieter Spealman ps163@nyu.edu
 """
@@ -35,30 +46,55 @@ parser.add_argument('-mt', '--middle_threshold')
 parser.add_argument('-ut', '--upper_threshold')
 
 parser.add_argument('-burnout', '--burnout', action='store_true')
-parser.add_argument('-min', '--minimum_reads')
+parser.add_argument('-min', '--minimum')
 parser.add_argument('-un', '--unchanged')
 parser.add_argument('-step', '--steps')
 
 parser.add_argument('-bprd', '--breakpoint_retrieval_and_definition', action='store_true')
+parser.add_argument('-require_close_inversion', '--require_close_inversion', action='store_true', default=True)
+parser.add_argument('-filter_multimappers', '--filter_multimappers', action='store_true', default=True)
+parser.add_argument('-filter_telomeres', '--filter_telomeres', action='store_true', default=True)
+parser.add_argument('-require_stars', '--require_stars', action='store_true', default=True)
 
 parser.add_argument('-blast', '--reflection_point_blast', action='store_true')
 parser.add_argument('-rp', '--reflection_point_seq')
 
-parser.add_argument('-pp', '--plot_phred', action='store_true')
-parser.add_argument('-nt_min', '--nt_min')
-parser.add_argument('-nt_max', '--nt_max')
-parser.add_argument('-mm', '--make_median', action='store_true')
-
 parser.add_argument('-e', '--evaluate', action='store_true')
+parser.add_argument('-t', '--tracert', action='store_true')
 parser.add_argument('-n', '--name')
-parser.add_argument('-b', '--breakpoint')
+parser.add_argument('-bp', '--breakpoint')
 parser.add_argument('-bpf', '--breakpoint_file')
 parser.add_argument('-snf', '--sniffle_file')
 parser.add_argument('-x', '--filter_list_file')
 
+#python mugio.py --coverage_calculator -filter NC_001224.1 -f ont_DGY1657/BC01_1657.fastq -o ont_DGY1657/cc_BC01_1657
+parser.add_argument('-cc', '--coverage_calculator', action='store_true')
+parser.add_argument('-filter', '--filter_chromo', nargs='+')
+
+#python mugio.py --get_inverted -f fastq -s ./1ef3e.sam -pct 0.33 -o 1ef3e_inverted
+parser.add_argument('-get', '--get_inverted', action='store_true')
+parser.add_argument('-pct', '--minimum_pct_unmapped')
+
+#python mugio.py --build_region -b 'chr:start-stop' -bam <bamfile> -f <fastqfile_name> -o <outfile_name>
+#python mugio.py --build_region -b NC_001137.3:441645-449321 -bam ont_DGY1726/DGY1726.bam -f ont_DGY1726/DGY1726.fastq -o DGY1726_inversion
+parser.add_argument('-br', '--build_region', action='store_true')
+
+#python mugio.py -pp -f DGY1726.fastq -uid e3567270-9a90-4017-8322-51cab31eba0d -o e3567270-9a90-4017-8322-51cab31eba0d.png
+parser.add_argument('-pp', '--plot_phred', action='store_true')
+parser.add_argument('-uid', '--uid_pull')
+parser.add_argument('-nt_min', '--nt_min')
+parser.add_argument('-nt_max', '--nt_max')
+parser.add_argument('-mm', '--make_median', action='store_true')
+
 parser.add_argument('-demo', '--run_demo', action='store_true')
 
 args = parser.parse_args()
+
+args = parser.parse_args()
+
+def force_mkdir(directory_name):
+    if not os.path.exists(directory_name):
+        os.makedirs(directory_name)
 
 def os_mkdir(in_name):    
     if '/' in in_name:
@@ -70,8 +106,7 @@ def os_mkdir(in_name):
 def run_demo():
     '''runs demo given a known set of files'''
     outline = ('\nMugio reguires the following programs:\n'+
-               '\tgzip\t1.5+\n'+
-               '\tpython\t2.7+ or 3.6+\n'+
+               '\tpython\t2.7+ or 3.6+\n'
                '\tsamtools\t1.6+\n'+
                '\tbedtools\t2.26.0+\n'+
                '\t(optional) The --blast command requires blast+ 2.9.0+\n'+
@@ -90,23 +125,6 @@ def run_demo():
                '\tjson\n')
     print(outline)
     
-    if not os.path.isfile('demo/demo.fastq'):
-        outline = ('GUnzipping the demo.fastq file\n')
-        print(outline)
-        bash_command = ('\tgunzip -f demo/demo.fastq.gz')
-        print(bash_command)
-        output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-        if output:
-            print(output)
-        
-    outline = ('Converting bam to sam\n')
-    print(outline)
-    bash_command = ('\tsamtools view -h -o demo/demo.sam demo/demo.bam')
-    print(bash_command)
-    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-    if output:
-        print(output)
-        
     outline = ('Command --background calculates the frequency of low_phred scoring reads.\n'+
                '\tHere we use the --burnout option to halt the process if no change greater than 1% is observed over 100 reads')
     print(outline)
@@ -126,7 +144,7 @@ def run_demo():
 
     outline = ("Command --evaluate calculates the correlation (Spearman's rho) between pre-breakpoint seqeunce length and post-breakpoint low scoring region length.")
     print(outline)
-    bash_command = ('\tpython mugio.py --evaluate -bpf demo_output/demo_bprd_bprd.bed -f demo/demo.fastq -s demo/demo.sam -o demo/demo_bprd_lengths')
+    bash_command = ('\tpython mugio.py --evaluate -bpf demo_output/demo_bprd_bprd.bed -f demo/demo.fastq -s demo/demo.sam -o demo/demo_lengths')
     print(bash_command)
     output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
     if output:
@@ -134,7 +152,7 @@ def run_demo():
         
     outline = ("Command --evaluate calculates the correlation (Spearman's rho) between pre-breakpoint seqeunce length and post-breakpoint low scoring region length.")
     print(outline)
-    bash_command = ('\tpython mugio.py --evaluate -snf demo/demo_sniffles.vcf -f demo/demo.fastq -s demo/demo.sam -o demo/demo_vcf_lengths')
+    bash_command = ('\tpython mugio.py --evaluate -snf demo_output/demo_bprd_bprd.bed -f demo/demo.fastq -s demo/demo.sam -o demo/demo_lengths')
     print(bash_command)
     output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
     if output:
@@ -211,7 +229,6 @@ def distance_cigar_to_phred(strand, cigar, threshold, prechar, postchar):
                 if match >= threshold:
                     correction = (match-threshold)
                     return(projection-correction)
-                        
                     
         correction = (postchar)
         return(projection-correction)
@@ -240,6 +257,8 @@ def parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo):
     starred = False
     starpower = 0
     char_per_step = []
+    sides = {'left':False, 'right': True}
+    
     for each_char in cigar:
         if each_char.isalpha():
             char_per_step.append(each_char)
@@ -248,6 +267,7 @@ def parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo):
         starpower =  int(cigar.split(char_per_step[0])[0])      
         if starpower > 100:
             starred = True
+            sides['left'] = True
             if chromo in starpoints_by_chromo:
                 starpoints_by_chromo[chromo].add(start)
             else:
@@ -259,6 +279,7 @@ def parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo):
         starpower = int(cigar.rsplit(char_per_step[-2], 1)[1].split(char_per_step[-1])[0])
         if starpower > 100:
             starred = True
+            sides['right'] = True
             if chromo in starpoints_by_chromo:
                 starpoints_by_chromo[chromo].add(stop)
             else:
@@ -266,7 +287,7 @@ def parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo):
                 starpoints_set.add(stop)
                 starpoints_by_chromo[chromo] = starpoints_set
                 
-    return(starred, starpower, starpoints_by_chromo)
+    return(starred, starpower, starpoints_by_chromo, sides)
         
 def convert_sort(outfile_name):
     case = True
@@ -743,7 +764,11 @@ def low_zones(phred_line, read_threshold, read_upper_threshold, phred_rates):
      
     return(case, resolved_zone_dict)
 
-def drop_anchor(start, stop, anchor_seed, anchor_set, anchor_point_dict, anchor_weight):
+def drop_anchor(start, stop, anchor_seed, anchor_set, anchor_point_dict, anchor_weight, sides):
+    
+#   TODO future version - sides
+#    for clipped_side in ['left','right']:
+#        if clipped_side:
     
     if (start,stop) not in anchor_seed:
                 
@@ -901,6 +926,13 @@ def derive_nt_weights(each_range, average, nt_weight):
         else:
             return(max_votes[0], max_votes[1], average)
 
+def star_range(rP):
+    for nt in range(min(rP), max(rP)+1):
+        if nt in starpoints_set:
+            return(True)
+            
+    return(False)
+
 def find_anchorpoint(starpoints_set, anchor_set, anchor_point_dict, anchor_weight):
     anchorpoints = {}
     weight_nt_list = []
@@ -914,29 +946,26 @@ def find_anchorpoint(starpoints_set, anchor_set, anchor_point_dict, anchor_weigh
         weight_nt_list, nt_weight = build_weights_in_range(weight, rA, weight_nt_list, nt_weight)
         weight_nt_list, nt_weight = build_weights_in_range(weight, rB, weight_nt_list, nt_weight)
         
-        star = False
-        for a_nt in range(min(rA),max(rA)):
-            if a_nt in starpoints_set:
-                star = True
-
-        if star:
-            star = False
-            for b_nt in range(min(rB),max(rB)):
-                if b_nt in starpoints_set:
-                    star = True
-                
-        if star:
+        if args.require_stars:
+            star_a = star_range(rA)
+            star_b = star_range(rB)
+            
+            if star_a or star_b:
+                anchorpoints[(pA, pB)] = [0,0]
+            
+        else:
             anchorpoints[(pA, pB)] = [0,0]
             
     mode_nt = max(set(weight_nt_list), key=weight_nt_list.count)
+    
+    if anchorpoints:    
+        for (pA, pB) in anchorpoints:
+            rA = anchor_point_dict[pA]
+            rB = anchor_point_dict[pB]
             
-    for (pA, pB) in anchorpoints:
-        rA = anchor_point_dict[pA]
-        rB = anchor_point_dict[pB]
-        
-        anchor_A, aA_median, aA_zscore = derive_nt_weights(rA, mode_nt, nt_weight)
-        anchor_B, aB_median, aB_zscore = derive_nt_weights(rB, mode_nt, nt_weight)
-        anchorpoints[(pA, pB)] = [anchor_A, aA_median, aA_zscore, anchor_B, aB_median, aB_zscore]
+            anchor_A, aA_median, aA_zscore = derive_nt_weights(rA, mode_nt, nt_weight)
+            anchor_B, aB_median, aB_zscore = derive_nt_weights(rB, mode_nt, nt_weight)
+            anchorpoints[(pA, pB)] = [anchor_A, aA_median, aA_zscore, anchor_B, aB_median, aB_zscore]
         
     return(anchorpoints)
             
@@ -1034,7 +1063,6 @@ def scan_flanking(stitch_pass, already_processed, stitch, stitch_num, stitch_gro
                             if (np.median(phred_list[:pre_zone_stop]) >= read_mid_threshold) and (np.median(pre_zone_phred) <= read_threshold):        
                                 if mod_zone_start <= pre_mod_zone_stop:
                                     for each_group in pre_stitch_group:
-                                        print(each_group)
                                         stitch_group.add(each_group)
                                 
                                     stitch_pass[stitch_num] = stitch_group
@@ -1202,6 +1230,7 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
     
     read_dict = {}
     for uid, max_ct in read_ct.items():
+        tracert(uid, '\tloaded from phred')
         temp_chromo = {}
         for ct in range(max_ct+1):
             uid_ct = ('{}.{}').format(uid, ct)
@@ -1223,6 +1252,7 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                 process = True
                 
         if process:
+            tracert(uid, ('{}\tadded to read_dict').format(uid))
             for ct in range(max_ct+1):
                 uid_ct = ('{}.{}').format(uid, ct)
                 read_dict[uid_ct] = read_dict_prefilter[uid_ct]
@@ -1243,6 +1273,7 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                     uid_brkpt_dict[uid_ct] = parallel_construction(strand, cigar, len(local_phred_line), start, stop, brk_start, brk_stop)
                     
                     if uid not in uid_brkpt_sites:
+                        tracert(uid, '\tadded to uid_brkpt_sites')
                         uid_brkpt_sites[uid] = [uid_brkpt_dict[uid_ct]]
                     else:
                         uid_brkpt_sites[uid] += [uid_brkpt_dict[uid_ct]]     
@@ -1268,6 +1299,7 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
         outstats.write(outline)
         
         if (uid in read_ct) and (uid in supplemental_align_set) and (uid in cross_brkpt_set):
+            tracert(uid, '\tpassed three way test')
             map_dict = {}
             phred_line = fastq_dict[uid]
             read_stop = len(phred_line)
@@ -1318,7 +1350,6 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
             else:
                 median_starts = window_median
                 
-            
             if stop_sites:
                 median_stops = np.median(stop_sites)
             else:
@@ -1338,7 +1369,10 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                         map_dict[(each_nt + uid_ct_to_coordinates[uid_ct_f][1])]=uid_ct_r
                         
             mapped_uid_ct = {}
+            mapped_uid = set()
             for map_nt, uid_ct in map_dict.items():
+                mapped_uid.add(uid_ct.split('.')[0])
+                
                 if uid_ct not in mapped_uid_ct:
                     map_set = set()
                     map_set.add(map_nt)
@@ -1347,18 +1381,25 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                 else:
                     mapped_uid_ct[uid_ct].add(map_nt)
             
+            for uid in mapped_uid:
+                tracert(uid, '\tmapped to nt')
+            
             outline = ('Reads with significant low zone:\n')
             outstats.write(outline)
+            
+            inbrk_uid = set()
+            resolved_uid = set()
+            pvalue_uid = set()
             
             for s_uid in sorted_uid_ct_to_section:
                 uid_ct = s_uid[0]
                 strand = read_dict[uid_ct][0]
                 
                 outline = ('{}\t{}\n').format(s_uid,uid_ct)
-                print(outline)
                 outstats.write(outline)
                 
                 if (uid_ct in uid_brkpt_dict):
+                    inbrk_uid.add(uid.split('.')[0])
                     rel_brk_start, rel_brk_stop = uid_brkpt_dict[uid_ct]
                     print('Running resolved zones')
                     case = False
@@ -1369,10 +1410,14 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                     case, resolved_zone_dict = resolve_zones(phred_line, read_threshold, read_mid_threshold, read_upper_threshold, rel_brk_start, rel_brk_stop, read_stop, phred_rates)
 
                     if len(resolved_zone_dict) > 0:
+                        resolved_uid.add(uid_ct.split('.')[0])
+                        
                         for each_zone, res_stats in resolved_zone_dict.items():
                             pval = res_stats[3]
                             
                             if pval <= 0.05 and case:
+                                pvalue_uid.add(uid_ct.split('.')[0])
+                                
                                 zone_type = 'r'
                                 outline = ('{}\n').format(uid)
                                 outstats.write(outline)
@@ -1403,30 +1448,28 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                             zone_median, zone_start, zone_stop, pval, p_list = res_stats
                             lengths = [zone_start, (zone_stop-zone_start)]
                             if lengths not in cor_lengths:
-                                cor_lengths.append(lengths)
+                                cor_lengths.append(lengths)     
+            
+            for uid in inbrk_uid:
+                tracert(uid, '\tin break')
+                
+            for uid in resolved_uid:
+                tracert(uid, '\tresolved')
+                
+            for uid in pvalue_uid:
+                tracert(uid, '\pvalue')
     
     rho, pval = stats.spearmanr(cor_lengths)
             
     outline = ('Sample: {} Rho: {} pval: {} from {} sequences.\n').format(is_outfile_name, round(float(rho),4), round(float(pval),6), len(cor_lengths))
     print(outline)
     outstats.write(outline)
-            
-    if starting_distances:
-        outline = ('Distances from breakpoint:\nMedian: {}\tLeast: {}\tGreatest: {}\n').format(np.median(starting_distances), min(starting_distances), max(starting_distances))
-        outstats.write(outline)
-    
-    if zone_lengths:
-        outline = ('Low Phred Score zone lengths:\nMedian: {}\tLeast: {}\tGreatest: {}\n').format(np.median(zone_lengths), min(zone_lengths), max(zone_lengths))
-        outstats.write(outline)
-    
-    outstats.close()
-    
+                
     resource_pickle_name = ('{}_lengths.p').format(is_outfile_name)         
     with open(resource_pickle_name, 'wb') as file:
         pickle.dump(cor_lengths, file)
            
 def test_for_close_inversion(uid, read_ct, read_dict, uid_starpower):
-    
     for uid_is_1 in range(read_ct[uid]+1):
         for uid_is_2 in range(read_ct[uid]+1):
             if uid_is_1 != uid_is_2:
@@ -1461,6 +1504,49 @@ def filter_bprd(start, stop, coor_list):
     else:
         return(False)
         
+def get_lengths_from_fastq(fastq_file_name):
+    fastq_len_dict = {}
+    fastq_file = open(fastq_file_name)
+    
+    ct = 0
+    for line in fastq_file:
+        ct+=1
+        if line[0] == '@':
+            ct = 0
+            
+        if ct == 0:
+            uid = line.split('@')[1].split(' ')[0].strip()
+        if ct == 1:
+            fastq_len_dict[uid] = len(line.strip())
+    fastq_file.close()
+
+    return(fastq_len_dict)
+        
+def read_bin(cigar, collect):
+    match = 0
+    #total_length = 0
+    
+    temp_list = re.split('M|S|D|I|H', cigar)
+    
+    char_per_step = []
+    for each_char in cigar:
+        if each_char.isalpha():
+            char_per_step.append(each_char)
+    
+    for each_step in range(len(char_per_step)):
+        #total_length += int(temp_list[each_step])
+        
+        if (char_per_step[each_step] == collect):
+            match += int(temp_list[each_step])
+    
+    # NB: total_length commented out        
+    #Turns out this total length calculation can be off 
+    #substantially as not all bases are included in the CIGAR. 
+    #Hard clips seem to be part of the issue.
+    #
+
+    return(match)
+        
 if args.run_demo:
     run_demo()
             
@@ -1468,6 +1554,12 @@ if args.plot_phred:
     os_mkdir(args.outfile_name)
     fastqfile_name = (args.fastqfile_name)
     phred_file = open(fastqfile_name)
+        
+    process = True
+    
+    if args.uid_pull:
+        process = False
+        pull_uid = args.uid_pull.strip()
     
     line_ct = 4
     for line in phred_file:
@@ -1475,7 +1567,12 @@ if args.plot_phred:
         
         if line[0] == '@':
             uid = line.split('@')[1].split(' ')[0].strip()
-            line_ct = 0
+            if args.uid_pull:
+                if uid == pull_uid:
+                    process = True
+                    line_ct = 0
+            else:
+                line_ct = 0
                                         
         if line_ct == 3:
             phred_line = line.strip()
@@ -1511,19 +1608,21 @@ if args.plot_phred:
     plt.savefig(args.outfile_name)
     plt.close()
 
-if args.breakpoint_retrieval_and_definition: 
+if args.breakpoint_retrieval_and_definition:
     os_mkdir(args.outfile_name)
         
     fastqfile_name = args.fastqfile_name
     samfile_name = args.samfile_name
     outfile_name = args.outfile_name
-    
-    print('Processing fastq file to build complete fastq phred set ...')
-    infile = open(fastqfile_name)
-    
+           
+    if args.minimum:
+        minimum = float(args.minimum)
+    else:
+        minimum = 5
+        
     filter_dict = {}
-
-    if args.filter_list_file:     
+    if args.filter_list_file: 
+        print('Checking locus filter...')
         filter_list = open(args.filter_list_file)
         
         for line in filter_list:
@@ -1537,36 +1636,7 @@ if args.breakpoint_retrieval_and_definition:
                     filter_dict[chromo] = [[start,stop]]
                 else:
                     filter_dict[chromo] += [start,stop]
-
-    phred_dict = {}
-    anchor_point_dict = {}
-    anchor_set = set()
-    
-    all_phred_list = []
-    line_ct = 4
-    total_read_ct = 0
-
-    for line in infile:
-        line_ct += 1
         
-        if line[0] == '@':
-            uid = line.split('@')[1].split(' ')[0].strip()
-            line_ct = 0
-            total_read_ct += 1
-                                        
-        if line_ct == 3:
-            phred_line = line.strip()
-            if phred_line:
-                phred_list = ord_phred(phred_line)
-                phred_dict[uid] = phred_list
-
-                if phred_list:
-                    all_phred_list.append(np.median(phred_list))
-            
-    infile.close()
-    
-    read_threshold = np.median(all_phred_list)-(5*np.std(all_phred_list))
-    
     print('Processing sam file for breakpoint retrieval and definition (bprd)...')
     samfile = open(samfile_name)
     multimapper_align_set = set()
@@ -1576,7 +1646,10 @@ if args.breakpoint_retrieval_and_definition:
     chromo_size_dict = {}
     starpoints_by_chromo = {}
     uid_starpower = {}
-
+    side_dict = {}
+    
+    aligned_uid = set()
+        
     for line in samfile:
         if line[0] == '@':
             if 'LN:' in line:
@@ -1590,19 +1663,28 @@ if args.breakpoint_retrieval_and_definition:
                     print('chromosome name duplication in sam file')
                 
         if line[0] != '@':
-            multimapper = unpackbits(np.array([int(line.split('\t')[1])]))[0][8]
-            if multimapper == 0:    
-                if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
-                    supplemental_align_set.add(uid)
-                    
+            cigar = line.split('\t')[5]
+           
+            if cigar != '*':                
                 uid = line.split('\t')[0]
-                chromo = line.split('\t')[2]
+                aligned_uid.add(uid)
                 
-                start = int(line.split('\t')[3])
-                strand = unpackbits(np.array([int(line.split('\t')[1])]))[0][4]
-                cigar = line.split('\t')[5]
+                process = True
+                if args.filter_multimappers:
+                    process = False
+                    multimapper = unpackbits(np.array([int(line.split('\t')[1])]))[0][8]
+                    if multimapper == 0:
+                        process = True
                 
-                if cigar != '*':
+                if process:        
+                    if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
+                        supplemental_align_set.add(uid)
+                        
+                    chromo = line.split('\t')[2]
+                    
+                    start = int(line.split('\t')[3])
+                    strand = unpackbits(np.array([int(line.split('\t')[1])]))[0][4]
+    
                     stop = start + distance_in(strand, cigar, 'reference') - 1                        
                     filter_line = False
                     
@@ -1612,7 +1694,8 @@ if args.breakpoint_retrieval_and_definition:
                             filter_line = filter_bprd(start, stop, coor_list)
                     
                     if not filter_line:
-                        starred, starpower, starpoints_by_chromo = parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo)
+                        #TODO Future Version with sides
+                        starred, starpower, starpoints_by_chromo, sides = parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo)
                                                     
                         if starred:
                             if uid not in read_ct:
@@ -1623,8 +1706,57 @@ if args.breakpoint_retrieval_and_definition:
                             uid_ct = ('{}.{}').format(uid, read_ct[uid])
                             read_dict[uid_ct] = [strand, chromo, start, stop]
                             uid_starpower[uid_ct] = starpower
+                            side_dict[uid_ct] = sides
                                         
     samfile.close()
+    
+    print('Processing fastq file to build complete fastq phred set ...')
+    infile = open(fastqfile_name)
+    
+    phred_dict = {}
+    anchor_point_dict = {}
+    anchor_set = set()
+    
+    all_phred_list = []
+    line_ct = 4
+    total_read_ct = 0
+
+    for line in infile:
+        line_ct += 1
+        
+        if line[0] == '@':
+            uid = line.split('@')[1].split(' ')[0].strip()
+            if uid in aligned_uid:
+                line_ct = 0
+                total_read_ct += 1
+                                        
+        if line_ct == 3:
+            phred_line = line.strip()
+            if phred_line:
+                phred_list = ord_phred(phred_line)
+                phred_dict[uid] = phred_list
+
+                if phred_list:
+                    all_phred_list.append(np.median(phred_list))
+            
+    infile.close()
+    
+    total_read_ct = len(phred_dict)
+    read_median = np.median(all_phred_list)
+    read_std = np.std(all_phred_list)
+    read_threshold = max(1, read_median-(5*read_std))
+    
+    finalstats_name = ('{}_final_stats.log').format(outfile_name)
+    finalstats = open(finalstats_name,'w')
+        
+    outline = ('Total Aligned number of reads: {}\n' +
+               'Total read median: {}\n' +
+               'Total read standard deviation: {}\n' +
+               'Lower read threshold (median - 5 STD): {}\n').format(total_read_ct, read_median, read_std, read_threshold)
+    
+    finalstats.write(outline)  
+    print(outline)
+    
         
     if not chromo_size_dict:
         print('Failed to load chromosome sizes from sam file. Please ensure sam file contains chromosome names.')
@@ -1646,36 +1778,54 @@ if args.breakpoint_retrieval_and_definition:
     cleared_uid_list = []
     
     breakpoints_by_chromo = {}
-    
+    long_phred_ct = 0
+    in_chromo_ct = 0
+    not_telomere = 0
     #Does it have supplemental reads? It should be in supplemental_align_set
     for uid in supplemental_align_set:
-        process = False        
-        if uid in same_chromo_list:                
-            if test_for_close_inversion(uid, read_ct, read_dict, uid_starpower):
-                #Does it have a low phred score region at least 1000 nt long?
+        process = True        
+        if uid in same_chromo_list:           
+            #Is the endpoint within the unaligned space of the soft/hard clipped sequence? 
+            if args.require_close_inversion:
+                process = test_for_close_inversion(uid, read_ct, read_dict, uid_starpower) 
                 
-                if test_for_long_phred(phred_dict[uid]):                                                
+            if process:
+                #Does it have a low phred score region at least 1000 nt long?
+                if test_for_long_phred(phred_dict[uid]):                                           
                     for index in range(read_ct[uid]+1):
                         uid_ct = ('{}.{}').format(uid, index)
                         chromo = (read_dict[uid_ct][1])
                         rstart = int(read_dict[uid_ct][2])
                         rstop = int(read_dict[uid_ct][3])
+                        long_phred_ct += 1
                         
-                        if chromo in chromo_size_dict:                            
+                        if chromo in chromo_size_dict:
+                            in_chromo_ct += 1
+                            
                             if (rstart >= 500) and (rstop < chromo_size_dict[chromo]-500):
-                                
+                                not_telomere += 0
                                 if chromo not in breakpoints_by_chromo:
                                     breakpoints_by_chromo[chromo] = [[rstart, rstop, uid_ct]]
                                 else:
                                     breakpoints_by_chromo[chromo] += [[rstart, rstop, uid_ct]]
                                     
                                 cleared_uid_list.append(uid)
-       
+                        else:
+                            print('Missing chromo ', chromo)
+                        
+    outline = ('Total number reads to pass the first filter: {}\n' +
+               'Total number of read segments: {}\n' +
+               'Total number of read segments to pass the second filter: {}\n').format(len(read_ct),
+                        len(read_dict), len(cleared_uid_list))
+    
+    finalstats.write(outline)
+    print(outline)
                                     
     if breakpoints_by_chromo:
         phase_one_outfile_name = outfile_name + '_phaseone.bed'
         phase_one_outfile = open(phase_one_outfile_name, 'w')
         anchor_to_brkpt = {}
+        anchor_ct = 0
         
         for chromo, breakpoint_list in breakpoints_by_chromo.items():
             starpoints_set = starpoints_by_chromo[chromo]
@@ -1685,7 +1835,9 @@ if args.breakpoint_retrieval_and_definition:
             anchor_weight = {}
             
             for rstart, rstop, uid_ct in breakpoint_list:
-                anchor_seed, anchor_set, anchor_point_dict, anchor_weight = drop_anchor(rstart, rstop, anchor_seed, anchor_set, anchor_point_dict, anchor_weight)
+                #TODO Future Version with sides
+                #sides = side_dict[uid_ct]
+                anchor_seed, anchor_set, anchor_point_dict, anchor_weight = drop_anchor(rstart, rstop, anchor_seed, anchor_set, anchor_point_dict, anchor_weight, sides)
     
             anchor_weight = weigh_anchor(starpoints_set, anchor_point_dict, anchor_weight, 2)
     
@@ -1700,23 +1852,30 @@ if args.breakpoint_retrieval_and_definition:
                 reduced, anchor_set, anchor_point_dict, anchor_weight = reduce_anchor(anchor_set, anchor_point_dict, anchor_weight, 1000)
                 
             anchorpoints = find_anchorpoint(starpoints_set, anchor_set, anchor_point_dict, anchor_weight)
-                                
-            anchor_index = 0
-            for (pA, pB), (anchor_start, start_median, start_zscore, anchor_stop, stop_median, stop_zscore) in anchorpoints.items():
-                anchor_uid = str(hash(('{},{}').format(chromo, anchor_index)))
-                anchor_index += 1  
-                
-                if (start_median >= 5):
-                    outline = ('{}\t{}\t{}\t{}.0\t{}\t.\n').format(chromo, anchor_start-10, anchor_start+10, anchor_uid, start_median)
-                    anchor_to_brkpt[anchor_uid+'.0']=outline
-                    phase_one_outfile.write(outline)
+                  
+            if anchorpoints:
+                anchor_index = 0
+                for (pA, pB), (anchor_start, start_median, start_zscore, anchor_stop, stop_median, stop_zscore) in anchorpoints.items():
+                    anchor_uid = str(hash(('{},{}').format(chromo, anchor_index)))
+                    anchor_index += 1  
                     
-                if (stop_median >= 5):
-                    outline = ('{}\t{}\t{}\t{}.1\t{}\t.\n').format(chromo, anchor_stop-10, anchor_stop+10, anchor_uid, stop_median)
-                    anchor_to_brkpt[anchor_uid+'.1']=outline
-                    phase_one_outfile.write(outline)
+                    if (start_median >= minimum):
+                        outline = ('{}\t{}\t{}\t{}.0\t{}\t.\n').format(chromo, anchor_start-10, anchor_start+10, anchor_uid, start_median)
+                        anchor_to_brkpt[anchor_uid+'.0']=outline
+                        phase_one_outfile.write(outline)
+                        anchor_ct += 1
+                        
+                    if (stop_median >= minimum):
+                        outline = ('{}\t{}\t{}\t{}.1\t{}\t.\n').format(chromo, anchor_stop-10, anchor_stop+10, anchor_uid, stop_median)
+                        anchor_to_brkpt[anchor_uid+'.1']=outline
+                        phase_one_outfile.write(outline)
+                        anchor_ct += 1
 
         phase_one_outfile.close()
+        
+        outline = ('Total number of Anchorpoints candidates: {}\n').format(anchor_ct)
+        finalstats.write(outline)
+        print(outline)
         
         if anchor_to_brkpt:
             print('Running Anchorpoints')
@@ -1749,7 +1908,6 @@ if args.breakpoint_retrieval_and_definition:
             quant_score = {}
             chromo_regions = {}
                         
-            #TODO fixx file name
             outfile = open(outfile_name + '_bprd.bed', 'w')
             
             for line in temp_count_file:
@@ -1850,10 +2008,16 @@ if args.breakpoint_retrieval_and_definition:
                         outfile.write(outline)
                                                     
             outfile.close()
+            
+        outline= ('Total number of Breakpoint candidates: {}').format(anchor_index)
+        finalstats.write(outline)
+        print(outline)
         
     else:
         print('No significant breaks identified.')
         
+    finalstats.close()
+    
     print('Processing sam file for samfile recreation...')
     samfile = open(samfile_name)
     outsamfile_name = outfile_name + '_background'
@@ -2080,7 +2244,7 @@ if args.background:
                     
     fastqfile_name = (args.fastqfile_name)
     samfile_name = (args.samfile_name)
-    phred_stats_file_name = ('{}_phred_stats.log').format(args.outfile_name)
+    phred_stats_file_name = ('{}/background_phred_stats.log').format(args.outfile_name)
     phred_stats_file = open(phred_stats_file_name,'w')
     
     if args.burnout:
@@ -2089,8 +2253,8 @@ if args.background:
         unchanged = 10
         steps = 100
         
-        if args.minimum_reads:
-            minimum_reads = int(args.minimum_reads)
+        if args.minimum:
+            minimum_reads = int(args.minimum)
             
         if args.unchanged:
             unchanged = int(args.unchanged)
@@ -2148,7 +2312,7 @@ if args.background:
     if args.lower_threshold:
         read_threshold= float(args.lower_threshold)
     else:
-        read_threshold = np.median(all_phred_list)-(5*np.std(all_phred_list))
+        read_threshold = max(0, np.median(all_phred_list)-(5*np.std(all_phred_list)))
         
     if args.middle_threshold:
         read_mid_threshold = float(args.middle_threshold)
@@ -2265,11 +2429,16 @@ if args.background:
     if convert_sort(outfile_name):
         depth_filename = ('{output_file}.depth').format(output_file=outfile_name)
         depth_df = pd.read_csv(depth_filename, sep='\t')
-            
+
+# tracert for troubleshooting specific reads            
+def tracert(uid, outline):
+    if args.tracert:
+        global tracert_dict
+        tracert_dict[uid] = outline
 
 if args.evaluate:
     os_mkdir(args.outfile_name)
-    
+    tracert_dict = {}
     brkpt_list = []
     
     if args.breakpoint_file:
@@ -2350,6 +2519,8 @@ if args.evaluate:
                 
                 first_fastq_dict[uid] = phred_line
                 
+                tracert(uid, ('{}\tloaded from phred').format(uid))
+                
                 phred_list = ord_phred(phred_line)
                 
                 if phred_list:
@@ -2361,7 +2532,7 @@ if args.evaluate:
     infile.close()
         
     phred_rates = random.sample(each_phred_list, 10*longest_line)
-    read_threshold = np.median(all_phred_list)-(5*np.std(all_phred_list))
+    read_threshold = max(0, np.median(all_phred_list)-(5*np.std(all_phred_list)))
     read_mid_threshold = np.median(all_phred_list)-(3*np.std(all_phred_list))
     read_upper_threshold = np.median(all_phred_list)
     read_stop_threshold = np.median(all_phred_list)+(2*np.std(all_phred_list))
@@ -2371,7 +2542,7 @@ if args.evaluate:
     outline = ('{} median phred score of {} bases. {} minimum threshold for discovery.').format(np.median(all_phred_list), len(each_phred_list), read_threshold) 
     print(outline)
     
-    print('Processing sam file for breakpoint retrieval and definition (bprd)...')
+    print('Processing sam file for breakpoint evaluation...')
     samfile = open(samfile_name)
     
     supplemental_align_set = set()
@@ -2396,7 +2567,8 @@ if args.evaluate:
                 chromo = line.split('\t')[2]
                 
                 if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
-                    supplemental_align_set.add(uid)                        
+                    supplemental_align_set.add(uid)
+                    tracert(uid, ('{}\tsupplemental').format(uid))
                     
                 start = int(line.split('\t')[3])
                 strand = unpackbits(np.array([int(line.split('\t')[1])]))[0][4]
@@ -2433,3 +2605,235 @@ if args.evaluate:
         is_outfile_name = outline
         
         length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align_set, read_ct, read_dict, is_outfile_name)
+        
+    #tracert for troubleshooting specific reads
+    if args.tracert:
+        for uid, route in tracert_dict.items():
+            print(uid, route)
+        
+if args.coverage_calculator: 
+    filter_chromo_set = set()
+    
+    if args.filter_chromo:
+        if len([args.filter_chromo]) > 1: 
+            for each in args.filter_chromo:
+                filter_chromo_set.add(each)
+        else:
+            filter_chromo_set.add(args.filter_chromo[0])
+            
+    os_mkdir(args.outfile_name)
+    
+    fastq_file_name = args.fastqfile_name
+    
+    fastq_len_dict = get_lengths_from_fastq(fastq_file_name)
+            
+    samfile_name = (args.samfile_name)
+    samfile = open(samfile_name)
+    
+    chromo_size_dict = {'genome':0}
+    chromo_length_dict = {'genome':[]}
+    chromo_match_dict = {'genome':{'M':[], 'S':[], 'H':[], 'D':[], 'I':[]}}
+        
+    for line in samfile:
+        if line[0] == '@':
+            if 'LN:' in line:
+                line = line.strip()
+                chromo = line.split('SN:')[1].split('\t')[0].strip()
+                size = int(line.split('LN:')[1])
+                                
+                if chromo not in filter_chromo_set:
+                    if chromo not in chromo_size_dict:
+                        chromo_size_dict[chromo] = size
+                        chromo_size_dict['genome'] += (size)
+                        
+                    else:
+                        print('chromosome name duplication in sam file')
+                
+        if line[0] != '@':
+            if line.split('\t')[2] != '*':
+                chromo = line.split('\t')[2]
+                if chromo not in filter_chromo_set:
+                    uid = line.split('\t')[0]
+                    total_length = fastq_len_dict[uid]
+                    if chromo not in chromo_match_dict:
+                        chromo_match_dict[chromo] = {'M':[], 'S':[], 'H':[], 'D':[], 'I':[]}
+                    
+                    if chromo not in chromo_length_dict:
+                        chromo_length_dict[chromo] = []
+                    
+                    for each in ['M','S','H','D','I']:
+                        match = read_bin(line.split('\t')[5], each)
+                    
+                        chromo_match_dict[chromo][each].append(match)
+                        chromo_match_dict['genome'][each].append(match)
+                        
+                        if each == 'M':
+                            chromo_length_dict[chromo].append(total_length)
+                            chromo_length_dict['genome'].append(total_length)
+                        
+    samfile.close()
+    
+    outfile = open(args.outfile_name, 'w')
+    header = ('#chromo\tchromo_total_reads\tmean_length\tmedian_length\tstd_length\t'+
+              'M_mean_depth\tM_rel_global_mean\t'+
+              'S_mean_depth\tS_rel_global_mean\t'+
+              'H_mean_depth\tH_rel_global_mean\t'+
+              'D_mean_depth\tD_rel_global_mean\t'+
+              'I_mean_depth\tI_rel_global_mean'+
+              '\n')
+    outfile.write(header)
+    
+    genome_total_depth = {'M':0, 'S':0, 'H':0, 'D':0, 'I':0}
+    
+    for each in ['M','S','H','D','I']:
+        genome_total_depth[each] = (sum(chromo_match_dict['genome'][each]) / float(chromo_size_dict['genome']))
+                
+    for chromo, size in chromo_size_dict.items():
+        chromo_total_reads = len(chromo_length_dict[chromo])
+        mean_length = sum(chromo_length_dict[chromo]) / float(chromo_total_reads)
+        median_length = np.median(chromo_length_dict[chromo])
+        std_length = np.std(chromo_length_dict[chromo])
+        outline = ('{}\t{}\t{}\t{}\t{}\t').format(chromo, chromo_total_reads, mean_length, median_length, std_length)
+        
+        for each in ['M','S','H','D','I']:
+            mean_depth = sum(chromo_match_dict[chromo][each]) / float(size)
+            rel_global_mean = (mean_depth / float(genome_total_depth[each]))
+            next_str = ('{}\t{}\t').format(mean_depth, rel_global_mean)
+            outline += next_str
+            
+        outline = outline[:-1] + str('\n')
+        outfile.write(outline)
+        
+    
+    _n, _bins, _patches = plt.hist(chromo_length_dict['genome'], 'auto', facecolor='blue', alpha=0.5)
+    plt.xlabel('Read Size (nt)')
+    plt.ylabel('Read Count')
+    outline = ('Histogram distribution of {}\n median read size {}').format(args.outfile_name, np.median(chromo_length_dict['genome']))
+    plt.title(outline)
+    plt.savefig(args.outfile_name + '_histogram.pdf')
+    plt.show()
+    plt.close()
+        
+if args.build_region:
+    #module load mafft/intel/7.310
+    #module load emboss/intel/6.6.0
+    brkpt_raw = args.breakpoint
+    brkpt = brkpt_raw.replace(':','_')
+    bamfile_name = args.bamfile_name
+    outfile_name = args.outfile_name
+    fastqfile_name = args.fastqfile_name
+    force_mkdir(outfile_name)
+        
+    bash_command = ('\tsamtools view {bamfile_name} "{brkpt_raw}" > {outfile_name}/{brkpt}.sam').format(bamfile_name=bamfile_name, brkpt_raw=brkpt_raw, outfile_name=outfile_name, brkpt=brkpt)
+    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
+    
+    infile_name = ('{outfile_name}/{brkpt}.sam').format(brkpt=brkpt, outfile_name=outfile_name)
+    infile = open(infile_name) 
+        
+    uid_set = set()
+    for line in infile:
+        if line[0] != '@':
+            #filter out multimappers
+            if unpackbits(np.array([int(line.split('\t')[1])]))[0][8] == 0:
+                #filter out those reads that do not align at least twice
+                if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
+                    uid_set.add(line.split('\t')[0])
+    infile.close()
+    
+    outsam_name = ('{outfile_name}_{brkpt}.sam').format(brkpt=brkpt, outfile_name=outfile_name)
+    outsam_file = open(outsam_name, 'w')
+    
+    fasta_file_name = ('{outfile_name}_{brkpt}.fa').format(outfile_name=outfile_name, brkpt=brkpt)
+    fasta_file = open(fasta_file_name, 'w')
+    outline = ('Parsing fastq file to fasta {}...').format(fasta_file_name)
+    print(outline)
+    
+    line_ct = 4
+    fastq_file = open(fastqfile_name)
+    for line in fastq_file:
+        line_ct += 1
+        
+        if line[0] == '@':
+            uid = line.split('@')[1].split(' ')[0].strip()
+            if uid in uid_set:
+                line_ct = 0
+                                        
+        if line_ct == 1:
+            outline = ('>{}\n{}\n').format(uid, line.strip())
+            fasta_file.write(outline)
+            
+    fastq_file.close()
+    fasta_file.close()
+    
+    align_name = ('{outfile_name}/{brkpt}_aligned.msf').format(outfile_name=outfile_name, brkpt=brkpt)
+    outline = ('Building alignment file {}...').format(align_name)
+    print(outline)    
+    bashCommand = ('mafft --auto --adjustdirection --globalpair --quiet {fasta_file_name} > {align_name}').format(fasta_file_name=fasta_file_name, align_name=align_name)
+    output = subprocess.check_output([bashCommand],stderr=subprocess.STDOUT,shell=True)
+
+    consensus_name = ('{outfile_name}/{brkpt}_consensus.fa').format(outfile_name=outfile_name, brkpt=brkpt)    
+    outline = ('Building consensus file {}...').format(consensus_name)
+    print(outline)    
+    bashCommand = ('cons -name {brkpt}_{depth} -plurality 1 {align_name} -outseq {consensus_name}').format(brkpt=brkpt, depth=len(uid_set), align_name=align_name, consensus_name=consensus_name)
+    output = subprocess.check_output([bashCommand],stderr=subprocess.STDOUT,shell=True)
+
+    
+if args.get_inverted:
+    fastq_file_name = args.fastqfile_name
+    fastq_len_dict = get_lengths_from_fastq(fastq_file_name)
+    
+    infile_name = args.samfile_name
+    infile = open(infile_name) 
+    
+    outfile_name = args.outfile_name
+    
+    os_mkdir(outfile_name)
+    
+    if args.minimum_pct_unmapped:
+        mpct = 1-float(args.minimum_pct_unmapped)
+    else:
+        # mpct = 1-0.2
+        mpct = 0.8
+        
+    uid_coverage_dict = {}
+
+    for line in infile:
+        if line[0] != '@':
+            #filter out multimappers
+            if unpackbits(np.array([int(line.split('\t')[1])]))[0][8] == 0:
+                #filter out those reads that do not align at least twice
+                if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
+                    match = read_bin(line.split('\t')[5], 'M')
+                    
+                    uid = line.split('\t')[0]
+                    total_length = fastq_len_dict[uid]
+                    
+                    if uid not in uid_coverage_dict:
+                        uid_coverage_dict[uid]={'total':total_length,'match':match}
+                    else:
+                        uid_coverage_dict[uid]['match'] += match                    
+    infile.close()
+
+    uid_set = set()    
+    for uid, read_deets in uid_coverage_dict.items():
+        print(read_deets['match'], read_deets['total'], read_deets['match']/float(read_deets['total']))
+        
+        if read_deets['match']/float(read_deets['total']) <= mpct:
+            uid_set.add(uid)
+            
+    outsam_name = ('{outfile_name}.sam').format(outfile_name=outfile_name)
+    outsam_file = open(outsam_name, 'w')
+    
+    infile = open(infile_name) 
+    for line in infile:
+        if line[0] == '@':
+            outsam_file.write(line)
+            
+        if line[0] != '@':
+            if (line.split('\t')[0]) in uid_set:
+                outsam_file.write(line)
+                
+    infile.close()
+    outsam_file.close()
+    
+    convert_sort(outfile_name)
