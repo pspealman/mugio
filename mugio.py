@@ -12,9 +12,13 @@ Version 1.1 - 12.21.19 - Public Release - (Capital Stain)
     _x_ Added bam file generation to --evaluate command
     _x_ Added filter_telomeres, require_stars options to --bprd command
     
-Version 1.2 - 01.29.20 - Public Release - (The past has no power over me anymore.)
+Version 1.2 - 01.29.20 - Public Release - (The past has no power over me anymore. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
     _x_ Added filter_multimappers, require_close_inversion options to --bprd command
     _x_ Added tracert to --evaluate command 
+    
+Version 1.3 - 03.9.20 - Public Release - (I accept responsibility if my anger has hurt anyone. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
+    _x_ Added sign requirement to get_inverted
+    _x_ Fixed how coverage_calculator handles "chromosomes" (or small contigs) with no reads aligned.
     
 @author: Pieter Spealman ps163@nyu.edu
 """
@@ -182,7 +186,7 @@ def get_char(gc_cigar, runmode):
                 if each_char.isalpha():
                     return(True, prechar)
                             
-def distance_in(strand, cigar, runmode):
+def distance_in(cigar, runmode):
     match = 0 
         
     temp_list = re.split('M|S|D|I|H', cigar)
@@ -1546,6 +1550,18 @@ def read_bin(cigar, collect):
     #
 
     return(match)
+    
+def test_overlap(uid, chromo, start, length):
+    global overlap_set, overlap_dict 
+        
+    od_set = overlap_dict[uid][chromo]
+    
+    for each in range(start-100, length+101):
+        if each in od_set:
+            overlap_set.add(uid)
+            return(True)
+
+    return(False)
         
 if args.run_demo:
     run_demo()
@@ -1685,7 +1701,7 @@ if args.breakpoint_retrieval_and_definition:
                     start = int(line.split('\t')[3])
                     strand = unpackbits(np.array([int(line.split('\t')[1])]))[0][4]
     
-                    stop = start + distance_in(strand, cigar, 'reference') - 1                        
+                    stop = start + distance_in(cigar, 'reference') - 1                        
                     filter_line = False
                     
                     if filter_dict:
@@ -1759,8 +1775,9 @@ if args.breakpoint_retrieval_and_definition:
     
         
     if not chromo_size_dict:
-        print('Failed to load chromosome sizes from sam file. Please ensure sam file contains chromosome names.')
+        print('Failed to load chromosome sizes from sam file. Please ensure sam file contains chromosome names. \n\tUsing Default S. cerevisiae SacCer3 NCBI R64')
         chromo_size_dict = {'NC_001133.9':230218,'NC_001134.8':813184,'NC_001135.5':316620,'NC_001136.10':1531933,'NC_001137.3':576874,'NC_001138.5':270161,'NC_001139.9':1090940,'NC_001140.6':562643,'NC_001141.2':439888,'NC_001142.9':745751,'NC_001143.9':670191,'NC_001144.5':1078177,'NC_001145.3':924431,'NC_001146.8':784333,'NC_001147.6':1091291,'NC_001148.4':948066,'NC_001224.1':85779}
+        print(chromo_size_dict)
         
     same_chromo_list = []
     for uid, ct in read_ct.items():
@@ -1772,7 +1789,9 @@ if args.breakpoint_retrieval_and_definition:
             other_chromo = read_dict[uid_base][1]
             if base_chromo == other_chromo:
                 same_chromo_list.append(uid)
-    
+                
+    pass_file_set = set()
+        
     hit_dict = {}
     pair_dict = {}
     cleared_uid_list = []
@@ -1787,9 +1806,10 @@ if args.breakpoint_retrieval_and_definition:
         if uid in same_chromo_list:           
             #Is the endpoint within the unaligned space of the soft/hard clipped sequence? 
             if args.require_close_inversion:
-                process = test_for_close_inversion(uid, read_ct, read_dict, uid_starpower) 
-                
+                process = test_for_close_inversion(uid, read_ct, read_dict, uid_starpower)
+                            
             if process:
+                pass_file_set.add(uid)
                 #Does it have a low phred score region at least 1000 nt long?
                 if test_for_long_phred(phred_dict[uid]):                                           
                     for index in range(read_ct[uid]+1):
@@ -1820,6 +1840,22 @@ if args.breakpoint_retrieval_and_definition:
     
     finalstats.write(outline)
     print(outline)
+    
+    if len(pass_file_set)>0:
+        pass_filename=('{}_temp_pass_file.tab').format(args.outfile_name)
+        pass_file = open(pass_filename, 'w')
+        
+        samfile = open(samfile_name)
+        
+        for line in samfile:
+            if line[0]=='@':
+                pass_file.write(line)
+            else:
+                if line.split('\t')[0] in pass_file_set:
+                    pass_file.write(line)
+        
+        samfile.close()
+        pass_file.close()
                                     
     if breakpoints_by_chromo:
         phase_one_outfile_name = outfile_name + '_phaseone.bed'
@@ -2574,7 +2610,7 @@ if args.evaluate:
                 strand = unpackbits(np.array([int(line.split('\t')[1])]))[0][4]
                 cigar = line.split('\t')[5]
                 
-                stop = start + distance_in(strand, cigar, 'reference') - 1
+                stop = start + distance_in(cigar, 'reference') - 1
                 
                 if uid not in read_ct:
                     read_ct[uid] = 0
@@ -2689,20 +2725,23 @@ if args.coverage_calculator:
         genome_total_depth[each] = (sum(chromo_match_dict['genome'][each]) / float(chromo_size_dict['genome']))
                 
     for chromo, size in chromo_size_dict.items():
-        chromo_total_reads = len(chromo_length_dict[chromo])
-        mean_length = sum(chromo_length_dict[chromo]) / float(chromo_total_reads)
-        median_length = np.median(chromo_length_dict[chromo])
-        std_length = np.std(chromo_length_dict[chromo])
-        outline = ('{}\t{}\t{}\t{}\t{}\t').format(chromo, chromo_total_reads, mean_length, median_length, std_length)
-        
-        for each in ['M','S','H','D','I']:
-            mean_depth = sum(chromo_match_dict[chromo][each]) / float(size)
-            rel_global_mean = (mean_depth / float(genome_total_depth[each]))
-            next_str = ('{}\t{}\t').format(mean_depth, rel_global_mean)
-            outline += next_str
-            
-        outline = outline[:-1] + str('\n')
-        outfile.write(outline)
+        if chromo in chromo_length_dict:
+            chromo_total_reads = len(chromo_length_dict[chromo])
+            if chromo_total_reads > 20:
+                print(chromo)
+                mean_length = sum(chromo_length_dict[chromo]) / max((float(chromo_total_reads),1))
+                median_length = np.median(chromo_length_dict[chromo])
+                std_length = np.std(chromo_length_dict[chromo])
+                outline = ('{}\t{}\t{}\t{}\t{}\t').format(chromo, chromo_total_reads, mean_length, median_length, std_length)
+                print(outline)
+                for each in ['M','S','H','D','I']:
+                    mean_depth = sum(chromo_match_dict[chromo][each]) / float(size)
+                    rel_global_mean = (mean_depth / max(float(genome_total_depth[each]),1))
+                    next_str = ('{}\t{}\t').format(mean_depth, rel_global_mean)
+                    outline += next_str
+                    
+                outline = outline[:-1] + str('\n')
+                outfile.write(outline)
         
     
     _n, _bins, _patches = plt.hist(chromo_length_dict['genome'], 'auto', facecolor='blue', alpha=0.5)
@@ -2795,8 +2834,10 @@ if args.get_inverted:
         # mpct = 1-0.2
         mpct = 0.8
         
+    overlap_dict = {}
     uid_coverage_dict = {}
-
+    uid_sign = {}
+    
     for line in infile:
         if line[0] != '@':
             #filter out multimappers
@@ -2806,21 +2847,64 @@ if args.get_inverted:
                     match = read_bin(line.split('\t')[5], 'M')
                     
                     uid = line.split('\t')[0]
+                    chromo = line.split('\t')[2]
                     total_length = fastq_len_dict[uid]
                     
                     if uid not in uid_coverage_dict:
                         uid_coverage_dict[uid]={'total':total_length,'match':match}
                     else:
-                        uid_coverage_dict[uid]['match'] += match                    
+                        uid_coverage_dict[uid]['match'] += match 
+                    
+                    #make set with signs
+                    if uid not in uid_sign:
+                        uid_sign[uid] = set()
+                        uid_sign[uid].add(unpackbits(np.array([int(line.split('\t')[1])]))[0][4])
+                    else:
+                        uid_sign[uid].add(unpackbits(np.array([int(line.split('\t')[1])]))[0][4])                  
+                        
     infile.close()
 
     uid_set = set()    
     for uid, read_deets in uid_coverage_dict.items():
-        print(read_deets['match'], read_deets['total'], read_deets['match']/float(read_deets['total']))
+        if uid in uid_sign:
+            if len(uid_sign) > 1:
+                print(read_deets['match'], read_deets['total'], read_deets['match']/float(read_deets['total']))
         
-        if read_deets['match']/float(read_deets['total']) <= mpct:
-            uid_set.add(uid)
-            
+                if read_deets['match']/float(read_deets['total']) <= mpct:
+                    uid_set.add(uid)
+                    
+    
+    overlap_set = set()
+    infile = open(infile_name) 
+    for line in infile:
+        if line[0] != '@':
+            uid = line.split('\t')[0]
+            if (uid in uid_set) and (uid not in overlap_set):
+                start = int(line.split('\t')[3])
+                cigar = line.split('\t')[5]
+                length = distance_in(cigar, 'reference')
+                #
+                if uid not in overlap_dict:
+                    overlap_dict[uid] = {}
+                    overlap_dict[uid][chromo] = set()
+                    
+                    for nt in range(start, length+1):
+                        overlap_dict[uid][chromo].add(nt)
+                else:
+                    if chromo not in overlap_dict[uid]:
+                        overlap_dict[uid][chromo] = set()
+                        
+                        for nt in range(start, length+1):
+                            overlap_dict[uid][chromo].add(nt)
+                    else:
+                        if not test_overlap(uid, chromo, start, length):
+                            for nt in range(start, length+1):
+                                overlap_dict[uid][chromo].add(nt)                            
+                            
+    infile.close()
+    
+    
+                               
     outsam_name = ('{outfile_name}.sam').format(outfile_name=outfile_name)
     outsam_file = open(outsam_name, 'w')
     
@@ -2830,7 +2914,7 @@ if args.get_inverted:
             outsam_file.write(line)
             
         if line[0] != '@':
-            if (line.split('\t')[0]) in uid_set:
+            if (line.split('\t')[0]) in overlap_set:
                 outsam_file.write(line)
                 
     infile.close()
