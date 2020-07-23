@@ -20,6 +20,9 @@ Version 1.3 - 03.9.20 - Public Release - (I accept responsibility if my anger ha
     _x_ Added sign requirement to get_inverted
     _x_ Fixed how coverage_calculator handles "chromosomes" (or small contigs) with no reads aligned.
     
+Version 1.4 - 07.23.20 - Public Release - (I choose to find hopeful and optimistic ways to look at this. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
+    _x_ Corrected error where a fastq phred line starting with '@' generates a thrown read.
+    
 @author: Pieter Spealman ps163@nyu.edu
 """
 import os
@@ -1511,17 +1514,24 @@ def filter_bprd(start, stop, coor_list):
 def get_lengths_from_fastq(fastq_file_name):
     fastq_len_dict = {}
     fastq_file = open(fastq_file_name)
+    is_phred_line_next = False
     
     ct = 0
     for line in fastq_file:
         ct+=1
-        if line[0] == '@':
+        if line[0] == '@' and not is_phred_line_next:
             ct = 0
             
         if ct == 0:
             uid = line.split('@')[1].split(' ')[0].strip()
         if ct == 1:
             fastq_len_dict[uid] = len(line.strip())
+        if ct == 2:
+            if line[0] == '+':
+                is_phred_line_next = True
+        if ct == 3:
+            is_phred_line_next = False
+            
     fastq_file.close()
 
     return(fastq_len_dict)
@@ -1578,10 +1588,12 @@ if args.plot_phred:
         pull_uid = args.uid_pull.strip()
     
     line_ct = 4
+    is_phred_line_next = False
+    
     for line in phred_file:
         line_ct += 1
         
-        if line[0] == '@':
+        if line[0] == '@' and not is_phred_line_next:
             uid = line.split('@')[1].split(' ')[0].strip()
             if args.uid_pull:
                 if uid == pull_uid:
@@ -1589,8 +1601,12 @@ if args.plot_phred:
                     line_ct = 0
             else:
                 line_ct = 0
-                                        
+        if line_ct == 2:
+            if line[0] == '+':
+                is_phred_line_next = True
+                
         if line_ct == 3:
+            is_phred_line_next = False
             phred_line = line.strip()
     
     phred_file.close()
@@ -1736,17 +1752,24 @@ if args.breakpoint_retrieval_and_definition:
     all_phred_list = []
     line_ct = 4
     total_read_ct = 0
+    
+    is_phred_line_next = False
 
     for line in infile:
         line_ct += 1
         
-        if line[0] == '@':
+        if line[0] == '@' and not is_phred_line_next:
             uid = line.split('@')[1].split(' ')[0].strip()
             if uid in aligned_uid:
                 line_ct = 0
                 total_read_ct += 1
+                
+        if line_ct == 2:
+            if line[0] == '+':
+                is_phred_line_next = True
                                         
         if line_ct == 3:
+            is_phred_line_next = False
             phred_line = line.strip()
             if phred_line:
                 phred_list = ord_phred(phred_line)
@@ -2084,11 +2107,12 @@ def convert_to_fasta(fastq_filename, spliton, uid_list=[], filter_uid=False):
     
     fastq_file = open(fastq_filename)
     line_ct = 4
+    is_phred_line_next = False
     
     for line in fastq_file:
         line_ct += 1
         
-        if line[0] == '@':
+        if line[0] == '@' and not is_phred_line_next:
             line = line.strip()
             
             uid = line.split('@')[1].split(' ')[0]
@@ -2101,6 +2125,13 @@ def convert_to_fasta(fastq_filename, spliton, uid_list=[], filter_uid=False):
         if line_ct == 1:
             outline = ('>{}\n{}\n').format(uid, line.strip())
             fasta_file.write(outline)
+            
+        if line_ct == 2:
+            if line[0] == '+':
+                is_phred_line_next = True
+                
+        if line_ct == 3:
+            is_phred_line_next = False
             
     fasta_file.close()
     fastq_file.close()
@@ -2312,15 +2343,22 @@ if args.background:
     longest_line = 0
 
     character_count = {}
+    is_phred_line_next = False
 
     for line in infile:
         line_ct += 1
         
-        if line[0] == '@':
+        if line[0] == '@' and not is_phred_line_next:
             uid = line.split('@')[1].split(' ')[0].strip()
             line_ct = 0
-                                        
+            
+        if line_ct == 2:
+            if line[0]=='+':
+                is_phred_line_next = True
+                
         if line_ct == 3:
+            is_phred_line_next = False
+
             phred_line = line.strip()
             if phred_line:
                         
@@ -2539,15 +2577,21 @@ if args.evaluate:
     all_phred_list = []
     each_phred_list = []
     longest_line = 0
+    is_phred_line_next = False
 
     for line in infile:
         line_ct += 1
         
-        if line[0] == '@':
+        if line[0] == '@' and not is_phred_line_next:
             uid = line.split('@')[1].split(' ')[0].strip()
             line_ct = 0
+            
+        if line_ct == 2:
+            if line[0]=='+':
+                is_phred_line_next = True
                                         
         if line_ct == 3:
+            is_phred_line_next = False
             phred_line = line.strip()
             if phred_line:
                 if len(phred_line) >= longest_line:
@@ -2788,11 +2832,13 @@ if args.build_region:
     print(outline)
     
     line_ct = 4
+    is_phred_line_next = False
+    
     fastq_file = open(fastqfile_name)
     for line in fastq_file:
         line_ct += 1
         
-        if line[0] == '@':
+        if line[0] == '@'  and not is_phred_line_next:
             uid = line.split('@')[1].split(' ')[0].strip()
             if uid in uid_set:
                 line_ct = 0
@@ -2800,6 +2846,13 @@ if args.build_region:
         if line_ct == 1:
             outline = ('>{}\n{}\n').format(uid, line.strip())
             fasta_file.write(outline)
+            
+        if line_ct == 2:
+            if line[0]=='+':
+                is_phred_line_next = True
+                
+        if line_ct == 3:        
+            is_phred_line_next = False
             
     fastq_file.close()
     fasta_file.close()
