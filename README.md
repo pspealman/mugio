@@ -77,3 +77,13 @@ doi: https://doi.org/10.1101/852665
  * Results: 
  Identified candidates that have closed low-phred regions with have trace figures generated with low scoring regions identified. These will be saved in the out_path path as sub folders named after the inverted repeat junctions coordinates. 
  
+##View phred score trace of a read (--plot_phred or -pp)
+ * Purpose: Generate a figure showing the Phred score of each nucleotide (blue) as well as the median phread score calculated over a 1K window (orange). 
+ * Format (for a single read): 
+```
+python mugio.py -pp -f demo/demo.fastq -uid c1d4f6dc-cc1f-4431-a6a0-1b9f5109342c -o c1d4f6dc.png
+```
+ * Format (for all reads in a fastq): 
+```
+python mugio.py -pp -f demo/demo.fastq -o demo_
+```
