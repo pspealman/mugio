@@ -99,7 +99,7 @@ python mugio.py -pp -f demo/demo.fastq -o demo_
  * Purpose: Generate a table with read depth metircs such as median depth, standard deviation, genome wide relative median depth, etc. 
  * Format: 
 ```
-python mugio.py -cc [-filter <chromo_name>] -f <fastq_file> -o -o <output_path_and/or_file_prefix>
+python mugio.py -cc [-filter <chromo_name>] -f <fastq_file> -s <sam_file> -o <output_path_and/or_file_prefix>
 ```
  * Demo:
 ```
