@@ -4,11 +4,7 @@
  Mugio is intended to aid in the identification of potential inverted repeats in seqeuncing data from Oxford-Nanopore Technologies Nanopore seqeuncing platform (MinION, PromethION, GridION, etc.).
  
 #### Citation
-Preprint:
-
-Nanopore sequencing undergoes catastrophic sequence failure at inverted duplicated DNA sequences
-Pieter Spealman, Jaden Burrell,  David Gresham
-doi: https://doi.org/10.1101/852665
+Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase translocation rates through sequencing nanopores resulting in reduced base calling accuracy. Nucleic Acids Res. 2020 May 21;48(9):4940-4945. doi: 10.1093/nar/gkaa206. PMID: 32255181; PMCID: PMC7229812.
 
 ## Requirements
 ### Materials 
@@ -76,14 +72,38 @@ doi: https://doi.org/10.1101/852665
  ```
  * Results: 
  Identified candidates that have closed low-phred regions with have trace figures generated with low scoring regions identified. These will be saved in the out_path path as sub folders named after the inverted repeat junctions coordinates. 
- 
-##View phred score trace of a read (--plot_phred or -pp)
+
+## Optional modes 
+### View phred score trace of a read (--plot_phred or -pp)
  * Purpose: Generate a figure showing the Phred score of each nucleotide (blue) as well as the median phread score calculated over a 1K window (orange). 
  * Format (for a single read): 
 ```
+python mugio.py -pp -f <fastq_file> -uid <read uid> -o <output_path_and/or_file_name>
+```
+ * Demo:
+``` 
 python mugio.py -pp -f demo/demo.fastq -uid c1d4f6dc-cc1f-4431-a6a0-1b9f5109342c -o c1d4f6dc.png
 ```
  * Format (for all reads in a fastq): 
 ```
+python mugio.py -pp -f <fastq_file> -o <output_path_and/or_file_name>
+```
+ * Demo:
+```
 python mugio.py -pp -f demo/demo.fastq -o demo_
 ```
+ * Results: 
+ Figure showing and overlay of the immediate phred score and a trace of the median phred score across a rolling window. Note: the because the window is 1000 nt (by defualt) the median trace will stop 100 nt before the end of the phred score trace.  
+
+### Calculate chromosome and genome coverage (--coverage_calculator or -cc)
+ * Purpose: Generate a table with read depth metircs such as median depth, standard deviation, genome wide relative median depth, etc. 
+ * Format: 
+```
+python mugio.py -cc [-filter <chromo_name>] -f <fastq_file> -o -o <output_path_and/or_file_prefix>
+```
+ * Demo:
+```
+python mugio.py -cc -filter NC_001224.1 -f ont_DGY1657/BC01_1657.fastq -s ont_DGY1657/BC01_1657.sam -o ont_DGY1657/cc_BC01_1657
+```
+ * Results: 
+Tab-delimited file containing rows for each scaffold, chromosome, as well as total (assumbed to be the genome). Columns are various metrics of the aligned read-depth.
