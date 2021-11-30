@@ -20,9 +20,7 @@ Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase tran
 * (optional) The --blast command requires blast+ 2.9.0+
 
  Mugio reguires the following python packages:
-* os
 * numpy
-* argparse
 * scipy.stats
 * random
 * pickle
