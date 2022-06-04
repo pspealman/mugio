@@ -3,8 +3,8 @@
 Created on Mon May  6 21:02:55 2019
 # mugio - low as a verb
 
-Version 1.0 - 11.20.19 - Public Release - (Mind Television)
-Version 1.1 - 12.21.19 - Public Release - (Capital Stain)
+Version 1.0 - 11.20.19 - (Mind Television)
+Version 1.1 - 12.21.19 - (Capital Stain)
     _x_ Added coverage_calculator command
     _x_ Added build_region command
     _x_ Added get_inverted command
@@ -12,19 +12,39 @@ Version 1.1 - 12.21.19 - Public Release - (Capital Stain)
     _x_ Added bam file generation to --evaluate command
     _x_ Added filter_telomeres, require_stars options to --bprd command
     
-Version 1.2 - 01.29.20 - Public Release - (The past has no power over me anymore. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
+Version 1.2 - 01.29.20 - (The past has no power over me anymore. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
     _x_ Added filter_multimappers, require_close_inversion options to --bprd command
     _x_ Added tracert to --evaluate command 
     
-Version 1.3 - 03.9.20 - Public Release - (I accept responsibility if my anger has hurt anyone. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
+Version 1.3 - 03.9.20 - (I accept responsibility if my anger has hurt anyone. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
     _x_ Added sign requirement to get_inverted
     _x_ Fixed how coverage_calculator handles "chromosomes" (or small contigs) with no reads aligned.
     
-Version 1.4 - 07.23.20 - Public Release - (I choose to find hopeful and optimistic ways to look at this. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
+Version 1.4 - 07.23.20 - (I choose to find hopeful and optimistic ways to look at this. :: https://codepen.io/Tyrantd27/pen/GYvMVZ)
     _x_ Corrected error where a fastq phred line starting with '@' generates a thrown read.
+
+Version 1.5 - 11.30.21 - (Traffic Thesis)
+    _x_ Replaced -get_inverted with -get_discordant
+    
+Version 1.6 - 02.23.22 - (Restless Constellation)
+    _x_ Added MGE test, and gff output 
+    _x_ Added file test to convert_sort()
+    
+Version 1.7 - 05.05.22 - (Moon Abbey)
+    _x_ Added getseq
+    _x_ Added read_filter
+    _x_ Added get_contig
+    _x_ Added fastq2fasta
+    _x_ Added assign_from_lift_off
+    
+module load minimap2/2.22
+module load miniasm/0.3
+module load bedtools/intel/2.29.2
+module load samtools/intel/1.14
     
 @author: Pieter Spealman ps163@nyu.edu
 """
+#TODO - check os for replacement with pathlib
 import os
 import numpy as np
 import argparse
@@ -36,6 +56,8 @@ import re
 import subprocess
 import pandas as pd
 import json
+
+import pathlib
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -72,20 +94,32 @@ parser.add_argument('-n', '--name')
 parser.add_argument('-bp', '--breakpoint')
 parser.add_argument('-bpf', '--breakpoint_file')
 parser.add_argument('-snf', '--sniffle_file')
-parser.add_argument('-x', '--filter_list_file')
+parser.add_argument('-flf', '--filter_list_file')
 
-#python mugio.py --coverage_calculator -filter NC_001224.1 -f ont_DGY1657/BC01_1657.fastq -o ont_DGY1657/cc_BC01_1657
+#python mugio.py --get_seq -f /scratch/ps163/Project_Grace/3fa7b806-0383.fastq -o /scratch/ps163/Project_Grace/3fa7b806-0383.fasta
+parser.add_argument('-f2f', '--fastq2fasta', action='store_true')
+
+#python mugio.py --get_seq -f /scratch/ps163/Project_Grace/3fa7b806-0383.fastq -nt_min 20153 -nt_max 20527 -o 3fa7b806-0383
+parser.add_argument('-get_seq', '--get_seq', action='store_true')
+
+#python mugio.py --get_contig -f C:/Gresham/tiny_projects/Project_Grace/masurca/primary.genome.scf.fasta --name 060 -nt_min 624490 -nt_max 660000 -o C:/Gresham/tiny_projects/Project_Grace/masurca/DGY1751_060
+parser.add_argument('-contig', '--get_contig', action='store_true')
+
+#python mugio.py --coverage_calculator -filter NC_001224.1 -f ont_DGY1657/BC01_1657.fastq -s ont_DGY1657/BC01_1657.sam -o ont_DGY1657/cc_BC01_1657
 parser.add_argument('-cc', '--coverage_calculator', action='store_true')
 parser.add_argument('-filter', '--filter_chromo', nargs='+')
 
-#python mugio.py --get_inverted -f fastq -s ./1ef3e.sam -pct 0.33 -o 1ef3e_inverted
-parser.add_argument('-get', '--get_inverted', action='store_true')
+#python mugio.py --get_discordant -f <sample_fastq> -s <sample_aligned.sam> -pct <float> -o <output_prefix>
+#python mugio.py --get_discordant -f fastq/DGY1726.fastq -s bam/DNA_DGY1726.sam -pct 0 -o mugio/DGY1726_1
+#python mugio.py --get_discordant -f fastq/DGY1726.fastq -s bam/DNA_DGY1726.sam -pct 0 -o mugio/DGY1726_1
+parser.add_argument('-get', '--get_discordant', action='store_true')
 parser.add_argument('-pct', '--minimum_pct_unmapped')
 
 #python mugio.py --build_region -b 'chr:start-stop' -bam <bamfile> -f <fastqfile_name> -o <outfile_name>
 #python mugio.py --build_region -b NC_001137.3:441645-449321 -bam ont_DGY1726/DGY1726.bam -f ont_DGY1726/DGY1726.fastq -o DGY1726_inversion
 parser.add_argument('-br', '--build_region', action='store_true')
 
+#python mugio.py -pp -f <fastq_file> -uid <target uid> -o <output_name.png>
 #python mugio.py -pp -f DGY1726.fastq -uid e3567270-9a90-4017-8322-51cab31eba0d -o e3567270-9a90-4017-8322-51cab31eba0d.png
 parser.add_argument('-pp', '--plot_phred', action='store_true')
 parser.add_argument('-uid', '--uid_pull')
@@ -93,9 +127,39 @@ parser.add_argument('-nt_min', '--nt_min')
 parser.add_argument('-nt_max', '--nt_max')
 parser.add_argument('-mm', '--make_median', action='store_true')
 
+#read filter
+# python mugio.py --read_filter -f <fastq_file> --filter_list_file <filter_list_file.tsv> --samfile_name <samfile_name.sam> -o <output_name.fastq>
+parser.add_argument('-rf', '--read_filter', action='store_true')
+
+#assign_from_lift_off
+#python mugio.py --assign_from_lift_off -gff <original_gff.gff> -lift_gff <liftoff_file.gff> -o <output_name.txt>
+#python /scratch/ps163/Project_Grace/mugio.py --assign_from_lift_off -gff /scratch/cgsb/gresham/pieter/genome_annotations/Inhouse_GAP1/GCF_000146045.2_R64_genomic_GAP1_edit.gff -lift_gff /scratch/ps163/Project_Grace/masurca/DGY1751_gDNA/liftoff -o /scratch/ps163/Project_Grace/masurca/DGY1751_gDNA/liftoff_contig_assign.txt
+#-f <fastqfile_name> -minimum 90 -organism Saccharomyces cerevisiae -isolate DGY1751
+parser.add_argument('-aflo', '--assign_from_lift_off', action='store_true')
+parser.add_argument('-gff', '--gff_file')
+parser.add_argument('-lift_gff', '--lift_gff')
+parser.add_argument('-organism', '--organism')
+parser.add_argument('-isolate', '--isolate')
+parser.add_argument('-mito', '--mito')
+
+#python mugio.py -demo
 parser.add_argument('-demo', '--run_demo', action='store_true')
 
-args = parser.parse_args()
+#mge 
+#python mugio.py --get_discordant -mge metadata/te_a_SGD.gff -f fastq/DGY1657.fastq -s bam/DNA_DGY1657.sam -pct 0 -o mugio/DGY1657_mge
+#python mugio.py --get_discordant -mge mugio/te.gff -f fastq/DGY1726.fastq -s bam/DNA_DGY1726.sam -pct 0 -o mugio/DGY1726_mge
+#python mugio.py --get_discordant -mge mugio/te.gff -f fastq/DGY1728.fastq -s bam/DNA_DGY1728.sam -pct 0 -o mugio/DGY1728_mge
+#python mugio.py --get_discordant -mge mugio/te.gff -f fastq/DGY1735.fastq -s bam/DNA_DGY1735.sam -pct 0 -o mugio/DGY1735_mge
+#python mugio.py --get_discordant -mge metadata/te_a_SGD.gff -f fastq/DGY1741.fastq -s bam/DNA_DGY1741.sam -pct 0 -o mugio/DGY1741_mge
+#python mugio.py --get_discordant -mge metadata/te_a_NCBI_Gap1.gff -f fastq/DGY1741.fastq -s /scratch/ps163/Project_Carolino/gap1_bam/DNA_DGY1741.sam -pct 0 -o mugio/DGY1741_gap1_mge
+# python mugio.py --get_discordant -mge metadata/te_a_NCBI_Gap1.gff -f fastq/DGY1657.fastq -s /scratch/ps163/Project_Carolino/gap1_bam/DNA_DGY1657.sam -pct 0 -o mugio/DGY1657_gap1_mge
+# python mugio.py --get_discordant -mge metadata/te_a_NCBI_Gap1.gff -f fastq/DGY1726.fastq -s /scratch/ps163/Project_Carolino/gap1_bam/DNA_DGY1726.sam -pct 0 -o mugio/DGY1726_gap1_mge
+# python mugio.py --get_discordant -mge metadata/te_a_NCBI_Gap1.gff -f fastq/DGY1728.fastq -s /scratch/ps163/Project_Carolino/gap1_bam/DNA_DGY1728.sam -pct 0 -o mugio/DGY1728_gap1_mge
+# python mugio.py --get_discordant -mge metadata/te_a_NCBI_Gap1.gff -f fastq/DGY1735.fastq -s /scratch/ps163/Project_Carolino/gap1_bam/DNA_DGY1735.sam -pct 0 -o mugio/DGY1735_gap1_mge
+# python mugio.py --get_discordant -mge metadata/te_a_NCBI_Gap1.gff -f fastq/DGY1743.fastq -s /scratch/ps163/Project_Carolino/gap1_bam/DNA_DGY1743.sam -pct 0 -o mugio/DGY1743_gap1_mge
+
+parser.add_argument('-mge', '--mge_file')
+parser.add_argument('-all', '--return_all')
 
 args = parser.parse_args()
 
@@ -296,39 +360,28 @@ def parse_starpoints(start, stop, chromo, cigar, starpoints_by_chromo):
                 
     return(starred, starpower, starpoints_by_chromo, sides)
         
-def convert_sort(outfile_name):
-    case = True
-    bash_command = ('samtools view -Sb {output_file}.sam > {output_file}_u.bam').format(output_file=outfile_name)
-    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-    if output:
-        print(output)
-        case = False
-
-    bash_command = ('samtools sort -T tmp_sort -o {output_file}.bam {output_file}_u.bam').format(output_file=outfile_name)
-    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-    if output:
-        print(output)
-        case = False
+def convert_sort(outfile_name):    
+    input_file_name = ('{output_file}.sam').format(output_file=outfile_name)
+    
+    input_file = pathlib.Path(input_file_name)
+    if input_file.exists():
+        bash_command = ('samtools view -Sb {output_file}.sam > {output_file}_u.bam').format(output_file=outfile_name)
+        subprocess.run([bash_command],stderr=subprocess.STDOUT,shell=True)
+    
+        bash_command = ('samtools sort -T tmp_sort -o {output_file}.bam {output_file}_u.bam').format(output_file=outfile_name)
+        subprocess.run([bash_command],stderr=subprocess.STDOUT,shell=True)
+    
+        # TODO uncomment rm
+        #bash_command = ('rm {output_file}.sam {output_file}_u.bam').format(output_file=outfile_name)
+        #subprocess.run([bash_command],stderr=subprocess.STDOUT,shell=True)
+           
+        bash_command = ('samtools index {output_file}.bam').format(output_file=outfile_name)
+        subprocess.run([bash_command],stderr=subprocess.STDOUT,shell=True)
+                   
+        bash_command = ('bedtools genomecov -ibam {output_file}.bam -d > {output_file}.depth').format(output_file=outfile_name)
+        subprocess.run([bash_command],stderr=subprocess.STDOUT,shell=True)
         
-    bash_command = ('samtools index {output_file}.bam').format(output_file=outfile_name)
-    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-    if output:
-        print(output)
-        case = False
-        
-    bash_command = ('rm {output_file}.sam {output_file}_u.bam').format(output_file=outfile_name)
-    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-    if output:
-        print(output)
-        case = False
-
-    bash_command = ('bedtools genomecov -ibam {output_file}.bam -d > {output_file}.depth').format(output_file=outfile_name)
-    output = subprocess.check_output([bash_command],stderr=subprocess.STDOUT,shell=True)
-    if output:
-        print(output)
-        case = False
-        
-    return(case)
+    return()
 
 def distance_ref_to_cigar(strand, cigar, threshold, prechar, postchar):
     match = 0
@@ -1561,17 +1614,21 @@ def read_bin(cigar, collect):
 
     return(match)
     
-def test_overlap(uid, chromo, start, length):
-    global overlap_set, overlap_dict 
-        
+def test_overlap(uid, chromo, start, length, overlap_set, overlap_dict):
+    #global  
+    
     od_set = overlap_dict[uid][chromo]
+    
+    # if 'ac35925c-3e2a-4733-b9d7-fce5e62768ef' in uid:
+    #     print('ac35925c-3e2a-4733-b9d7-fce5e62768ef', start, length)
+    #     print(od_set)
     
     for each in range(start-100, length+101):
         if each in od_set:
             overlap_set.add(uid)
-            return(True)
+            return(True, overlap_set)
 
-    return(False)
+    return(False, overlap_set)
         
 if args.run_demo:
     run_demo()
@@ -2101,8 +2158,7 @@ if args.breakpoint_retrieval_and_definition:
     if make_out:
         _ = convert_sort(outsamfile_name)
             
-def convert_to_fasta(fastq_filename, spliton, uid_list=[], filter_uid=False):
-    fasta_file_name = fastq_filename.split(spliton)[0] + '_temp.fa'
+def convert_to_fasta(fastq_filename, fasta_file_name, uid_list=[], filter_uid=False):
     fasta_file = open(fasta_file_name,'w')
     
     fastq_file = open(fastq_filename)
@@ -2271,9 +2327,13 @@ def gff_from_json(json_file_name, gff_file_name, rp_seq, max_eval, min_coverage)
         gff_file.close()
         
     return(len(query_deets_dict))
+
+
+if args.fastq2fasta:
+    #outfile_name = args.outfile_name
+    fasta_file_name = convert_to_fasta(args.fastqfile_name, args.outfile_name)
     
 if args.reflection_point_blast:
-    #TODO blast
     #The use of this module is to identify reads that contain close matches to the reflection point identified by short-read sequencing
     os_mkdir(args.outfile_name)
     
@@ -2282,9 +2342,12 @@ if args.reflection_point_blast:
     
     if ('.fastq' in args.fastqfile_name) or ('.fq' in args.fastqfile_name):
         if ('.fastq' in args.fastqfile_name):
-            fasta_file_name = convert_to_fasta(args.fastqfile_name, '.fastq')
-        else:
-            fasta_file_name = convert_to_fasta(args.fastqfile_name, '.fq')
+            fasta_file_name = args.fastqfile_name.split('.fastq')[0] + '_temp.fa'
+            fasta_file_name = convert_to_fasta(args.fastqfile_name, fasta_file_name)
+        
+        if ('.fq' in args.fastqfile_name):
+            fasta_file_name = args.fastqfile_name.split('.fq')[0] + '_temp.fa'
+            fasta_file_name = convert_to_fasta(args.fastqfile_name, fasta_file_name)
     else:
         fasta_file_name = args.fastqfile_name
         
@@ -2307,7 +2370,6 @@ if args.reflection_point_blast:
 
 if args.background:
     os_mkdir(args.outfile_name)
-    #TODO background
                     
     fastqfile_name = (args.fastqfile_name)
     samfile_name = (args.samfile_name)
@@ -2523,10 +2585,6 @@ if args.evaluate:
                 chromo = line.split('\t')[0]
                 start = line.split('\t')[1]
                 stop = line.split('\t')[2]
-                #TODO remove filter
-                if (chromo != 'NC_001224.1'):
-                    outline = ('{}:{}-{}').format(chromo, start, stop)
-                    brkpt_list.append(outline)
             
     if args.sniffle_file:
         '''because of the way structural variants are defined by sniffles some 
@@ -2550,10 +2608,8 @@ if args.evaluate:
                         stop = int(deets.split('END=')[1].split(';')[0])
         
                     if (chromo1 == chromo2) and (start != stop):
-                        #TODO remove filter
-                        if (chromo1 != 'NC_001224.1'):
-                            outline = ('{}:{}-{}').format(chromo1, start, stop)
-                            brkpt_list.append(outline)
+                        outline = ('{}:{}-{}').format(chromo1, start, stop)
+                        brkpt_list.append(outline)
         
     if not args.breakpoint_file and not args.sniffle_file:
         brkpt = args.breakpoint
@@ -2870,7 +2926,71 @@ if args.build_region:
     output = subprocess.check_output([bashCommand],stderr=subprocess.STDOUT,shell=True)
 
     
-if args.get_inverted:
+if args.get_discordant:
+    
+    def parse_fq(target_set, fastq_file_name, outfile_name):
+        fastq_file = open(fastq_file_name)
+        
+        outfq_name = ('{outfile_name}').format(outfile_name=outfile_name)
+        outfq_file = open(outfq_name+'.fastq', 'w')
+        
+        line_ct = 0
+        output = False
+        
+        for line in fastq_file:
+            if line[0] == '@' and line_ct == 0:
+                uid = line.split(' ')[0].split('@')[1]
+                if uid in target_set:
+                    output = True
+                    
+            if output:
+                outfq_file.write(line)
+                
+            line_ct += 1
+            
+            if line_ct >= 4:
+                output = False
+                line_ct = 0
+                
+        fastq_file.close()
+        outfq_file.close()
+        
+        return(outfq_name)
+    
+    def run_assembler(fastq_name, outfile_name):
+        '''
+        build assembly section
+        module load minimap2/2.22
+        module load miniasm/0.3
+        '''
+        
+        bashCommand = ('minimap2 -x ava-ont -t8 {fastq}.fastq {fastq}.fastq | gzip -1 > {outfile}_reads.paf.gz').format(
+            fastq=fastq_name,
+            outfile=outfile_name)
+        subprocess.run([bashCommand],stderr=subprocess.STDOUT,shell=True)
+        
+        bashCommand = ('miniasm -f {fastq}.fastq {outfile}_reads.paf.gz > {outfile}_assemblies.gfa').format(
+            fastq=fastq_name,
+            outfile=outfile_name)
+        subprocess.run([bashCommand],stderr=subprocess.STDOUT,shell=True)
+        
+        output_name = ('{outfile}_assemblies.gfa').format(outfile=outfile_name)
+        
+        return(output_name)
+        '''
+        '''
+        
+    # def gfa_to_fa(gfa_name, outfile_name):
+    #     gfa_file = open(gfa_name)
+    #     fa_file = open(outfile_name, 'w')
+        
+    #     for line in gfa_file:
+    #         if line[0]=='S':
+    #             ctg = line.split('\t')[1]
+    #             seq = line.split('\t')[2]
+                
+    #     return()
+    
     fastq_file_name = args.fastqfile_name
     fastq_len_dict = get_lengths_from_fastq(fastq_file_name)
     
@@ -2881,96 +3001,726 @@ if args.get_inverted:
     
     os_mkdir(outfile_name)
     
+    #TODO future version for collection of discordant reads with high levels of non-mapping nucleotides
     if args.minimum_pct_unmapped:
         mpct = 1-float(args.minimum_pct_unmapped)
     else:
-        # mpct = 1-0.2
-        mpct = 0.8
+        mpct = 0
         
+    standard_map_set = set()
     overlap_dict = {}
     uid_coverage_dict = {}
     uid_sign = {}
     
+    uid_map_dict = {}
+    
+    outfa_name = ('{outfile_name}_unaligned').format(outfile_name=outfile_name)
+    outfa_file = open(outfa_name+'.fa', 'w')
+    
+    unaligned_set = set()
+    
+    #exctract reads and information for alignment assignments
     for line in infile:
         if line[0] != '@':
-            #filter out multimappers
-            if unpackbits(np.array([int(line.split('\t')[1])]))[0][8] == 0:
-                #filter out those reads that do not align at least twice
-                if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
-                    match = read_bin(line.split('\t')[5], 'M')
+            chromo = line.split('\t')[2]
+            uid = line.split('\t')[0]
+            
+            if '*' in chromo:
+                seq = line.split('\t')[9]
+                outline = ('>{}\n{}\n').format(uid,seq)
+                outfa_file.write(outline)
+                unaligned_set.add(uid)
+                
+            #select those reads that align only once
+            if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 0:
+                if '*' not in chromo:
+                    standard_map_set.add(uid)                    
+            
+            #filter out those reads that do not align at least twice
+            if unpackbits(np.array([int(line.split('\t')[1])]))[0][11] == 1:
+                match = read_bin(line.split('\t')[5], 'M')
+                
+                sign = unpackbits(np.array([int(line.split('\t')[1])]))[0][4]
+                total_length = fastq_len_dict[uid]
+                                 
+                if uid not in uid_coverage_dict:
+                    uid_coverage_dict[uid]={'total':total_length,'match':match, 'chromo':set(chromo)}
+                else:
+                    uid_coverage_dict[uid]['match'] += match 
+                    uid_coverage_dict[uid]['chromo'].add(chromo) 
                     
-                    uid = line.split('\t')[0]
-                    chromo = line.split('\t')[2]
-                    total_length = fastq_len_dict[uid]
+                if uid not in uid_map_dict:
+                    uid_map_dict[uid] = 0
                     
-                    if uid not in uid_coverage_dict:
-                        uid_coverage_dict[uid]={'total':total_length,'match':match}
-                    else:
-                        uid_coverage_dict[uid]['match'] += match 
+                uid_map_dict[uid] += 1
+                
+                #make set with signs
+                if uid not in uid_sign:
+                    uid_sign[uid] = set()
                     
-                    #make set with signs
-                    if uid not in uid_sign:
-                        uid_sign[uid] = set()
-                        uid_sign[uid].add(unpackbits(np.array([int(line.split('\t')[1])]))[0][4])
-                    else:
-                        uid_sign[uid].add(unpackbits(np.array([int(line.split('\t')[1])]))[0][4])                  
-                        
+                uid_sign[uid].add(sign)                  
+                    
     infile.close()
-
+    outfa_file.close()
+    
+    #get fastq for unaligned
+    outfq_name = parse_fq(unaligned_set, fastq_file_name, outfile_name + '_mge')
+    assmebly_name = run_assembler(outfq_name, outfile_name + '_unaligned')
+    
+    #qc for discordant reads 
     uid_set = set()    
     for uid, read_deets in uid_coverage_dict.items():
-        if uid in uid_sign:
-            if len(uid_sign) > 1:
-                print(read_deets['match'], read_deets['total'], read_deets['match']/float(read_deets['total']))
-        
+        if (uid in uid_sign):
+            if (len(uid_sign) > 1) or (len(read_deets['chromo'])>1):
                 if read_deets['match']/float(read_deets['total']) <= mpct:
-                    uid_set.add(uid)
-                    
+                    uid_set.add(uid)                   
     
+    #
     overlap_set = set()
     infile = open(infile_name) 
     for line in infile:
         if line[0] != '@':
             uid = line.split('\t')[0]
-            if (uid in uid_set) and (uid not in overlap_set):
+            
+            if (uid in uid_set):
+                chromo = line.split('\t')[2]
                 start = int(line.split('\t')[3])
                 cigar = line.split('\t')[5]
-                length = distance_in(cigar, 'reference')
-                #
+                length = distance_in(cigar, 'reference')+start
+                
                 if uid not in overlap_dict:
                     overlap_dict[uid] = {}
+                    
+                if chromo not in overlap_dict[uid]:
                     overlap_dict[uid][chromo] = set()
                     
+                overlap_q, overlap_set = test_overlap(uid, chromo, start, length, overlap_set, overlap_dict)
+                                    
+                if not overlap_q:                            
                     for nt in range(start, length+1):
                         overlap_dict[uid][chromo].add(nt)
-                else:
-                    if chromo not in overlap_dict[uid]:
-                        overlap_dict[uid][chromo] = set()
-                        
-                        for nt in range(start, length+1):
-                            overlap_dict[uid][chromo].add(nt)
-                    else:
-                        if not test_overlap(uid, chromo, start, length):
-                            for nt in range(start, length+1):
-                                overlap_dict[uid][chromo].add(nt)                            
                             
     infile.close()
     
+    out_mm_sam_name = ('{outfile_name}_multimapper').format(outfile_name=outfile_name)
+    out_mm_file = open(out_mm_sam_name +'.sam', 'w')
+                                   
+    outsam_name = ('{outfile_name}_overlap').format(outfile_name=outfile_name)
+    outsam_file = open(outsam_name+'.sam', 'w')
     
-                               
-    outsam_name = ('{outfile_name}.sam').format(outfile_name=outfile_name)
-    outsam_file = open(outsam_name, 'w')
+    out_st_sam_name = ('{outfile_name}_standard').format(outfile_name=outfile_name)
+    out_st_file = open(out_st_sam_name+'.sam', 'w')
+    
+    out_un_sam_name = ('{outfile_name}_unassigned').format(outfile_name=outfile_name)
+    out_un_file = open(out_un_sam_name+'.sam', 'w')
+    
+    if args.mge_file:
+        mge_candidate_uids = set()
     
     infile = open(infile_name) 
     for line in infile:
         if line[0] == '@':
             outsam_file.write(line)
+            out_mm_file.write(line)
+            out_st_file.write(line)
+            out_un_file.write(line)
             
         if line[0] != '@':
-            if (line.split('\t')[0]) in overlap_set:
+            uid = (line.split('\t')[0])
+            read_assigned = False
+            
+            if uid in overlap_set:
                 outsam_file.write(line)
+                read_assigned = True
+                
+                if args.mge_file:
+                    mge_candidate_uids.add(uid)
+                            
+            if (uid in uid_map_dict) and (uid not in overlap_set):
+                out_mm_file.write(line)
+                read_assigned = True     
+                
+                if args.mge_file:
+                    mge_candidate_uids.add(uid)
+                    
+            if (uid in standard_map_set) and (uid not in overlap_set) and (uid not in uid_map_dict):
+                out_st_file.write(line)
+                read_assigned = True
+                            
+            if not read_assigned:
+                out_un_file.write(line)
+                
+                if args.mge_file:
+                    mge_candidate_uids.add(uid)
                 
     infile.close()
     outsam_file.close()
+    out_mm_file.close()
+    out_st_file.close()
     
-    convert_sort(outfile_name)
+    if not args.mge_file:        
+        convert_sort(out_mm_sam_name)
+        convert_sort(outsam_name)
+        convert_sort(out_st_sam_name)
+        convert_sort(out_un_sam_name)
+        
+def load_mge_file():
+    mge_file_name = args.mge_file
+    mge_file = open(mge_file_name)
+    mge_dict = {}  
+    mge_out_to_gff = {}
+    
+    if mge_file_name[-4:] == '.gff':
+        for line in mge_file:
+            # chrI	reannotate	transposable_element	22232	22552	.	+	.	ID=chrI_s1_TY1
+            if line[0] != '#':
+                line = line.strip()
+                chromo = line.split('\t')[0]
+                start = int(line.split('\t')[3])
+                stop = int(line.split('\t')[4])
+                name = line.split('\t')[8].split(';')[0]
+                
+                if 'chr' in chromo:
+                    chromo = chromo.split('chr')[1]
+                
+                if '=' in name:
+                    name = name.split('=')[1]
+                
+                if chromo not in mge_dict:
+                    mge_dict[chromo] = {}
+                    
+                if name not in mge_dict[chromo]:
+                    mge_dict[chromo][name] = {'start':start,'stop':stop}
+                else:
+                    print("Error MGE name collision")
+                    
+                if name not in mge_out_to_gff:
+                    mge_out_to_gff[name] = {'chromo':chromo, 
+                                            'start':start,
+                                            'stop':stop,
+                                            'anchor_uid':set(),
+                                            'anchor_total_q':0,
+                                            'total_q':0,
+                                            'uid': set()}
+                else:
+                    print("Error MGE name collision", name)
+                    1/0
+    
+    #make a .bed or .gff identifier
+    if mge_file_name[-4:] == '.bed':
+        for line in mge_file:
+            if line[0] != '#':
+                chromo = line.split('\t')[0]
+                start = int(line.split('\t')[1])
+                stop = int(line.split('\t')[2])
+                name = line.split('\t')[3]
+                
+                if 'chr' in chromo:
+                    chromo = chromo.split('chr')[1]
+                
+                if chromo not in mge_dict:
+                    mge_dict[chromo] = {}
+                    
+                if name not in mge_dict[chromo]:
+                    mge_dict[chromo][name] = {'start':start,'stop':stop}
+                else:
+                    print("Error MGE name collision")
+    
+                if name not in mge_out_to_gff:
+                    mge_out_to_gff[name] = {'chromo':chromo, 
+                                            'start':start,
+                                            'stop':stop,
+                                            'anchor_uid':set(),
+                                            'anchor_total_q':0,
+                                            'total_q':0,
+                                            'uid': set()}
+                else:
+                    print("Error MGE name collision", name)
+                    1/0
+                    
+    return(mge_dict, mge_out_to_gff)
+
+def remove_overlaps(chromo, read_start, read_stop, mge_dict):
+    #on first sign of mge overlap, remove read alignment from consideration:
+    if chromo in mge_dict:
+        for name in mge_dict[chromo]:
+            mge_start = mge_dict[chromo][name]['start']
+            mge_stop = mge_dict[chromo][name]['stop']
+            
+            flank = 10
+            
+            if ((read_start) >= mge_start - flank) and ((read_stop) <= mge_stop + flank):
+                return(False)
+                
+    return(True)
+            
+
+def parse_multimapper_for_mge(mge_dict, mge_out_to_gff, mge_uid_dict, outfile_name, runmode):
+    out_mm_sam_name = ('{outfile_name}_multimapper').format(outfile_name=outfile_name)
+    infile_name = out_mm_sam_name + '.sam'
+        
+    if runmode == 'phase_one':
+        infile = open(infile_name)
+        
+        for line in infile:            
+            if line[0] != '@':
+                mapq = int(line.split('\t')[4])
+                cigar = line.split('\t')[5]
+                
+                if cigar != '*' and mapq > 0:                
+                    uid = line.split('\t')[0]
+                    chromo = line.split('\t')[2]
+                    
+                    read_start = int(line.split('\t')[3])
+                    read_stop = read_start + distance_in(cigar, 'reference') - 1   
+                    
+                    if chromo in mge_dict:
+                        for name in mge_dict[chromo]:
+                            mge_start = mge_dict[chromo][name]['start']
+                            mge_stop = mge_dict[chromo][name]['stop']
+                            
+                            flank = 500
+                            
+                            overlap = False
+                            
+                            if (read_start >= mge_start) and (read_stop <= mge_start):
+                                overlap = True
+                            
+                            if (read_start <= mge_start) and (read_stop >= mge_start):
+                                overlap = True
+                                
+                            if (read_start <= mge_stop) and (read_stop >= mge_stop):
+                                overlap = True                        
+                                
+                            if ((read_start) <= mge_start - flank) and ((read_stop) >= mge_stop + flank):
+                                overlap = False
+                            
+                            if overlap:
+                                if uid not in mge_uid_dict:
+                                    mge_uid_dict[uid] = set()
+                                
+                                mge_uid_dict[uid].add(name)
+                                
+                                if name in mge_out_to_gff:
+                                    if uid not in mge_out_to_gff[name]['uid']:
+                                        mge_out_to_gff[name]['uid'].add(uid)
+                                        mge_out_to_gff[name]['total_q'] += mapq
+                                        
+                                    # if '4874269b-f474-40c3-ae8f-0207765e607e' in uid:
+                                    #     print('4874269b-f474-40c3-ae8f-0207765e607e')
+                                    #     #print(line)
+                                    #     print(mge_out_to_gff[name])
+                            
+        infile.close()
+    
+    if runmode == 'phase_two':  
+        infile = open(infile_name)
+        for line in infile:            
+            if line[0] != '@':
+                uid = line.split('\t')[0]
+                
+                if uid in mge_uid_dict:
+                    # if '4874269b-f474-40c3-ae8f-0207765e607e' in uid:
+                    #     print('4874269b-f474-40c3-ae8f-0207765e607e')
+                    #     print(line)
+                    #     1/0
+                        
+                    mapq = int(line.split('\t')[4])
+                    cigar = line.split('\t')[5]
+                    
+                    if cigar != '*' and mapq > 0:
+                        chromo = line.split('\t')[2]
+                        
+                        read_start = int(line.split('\t')[3])
+                        read_stop = read_start + distance_in(cigar, 'reference') - 1  
+                        
+                        # if '4874269b-f474-40c3-ae8f-0207765e607e' in uid:
+                        #     print('4874269b-f474-40c3-ae8f-0207765e607e')
+                        #     print(line)
+                        #     print(remove_overlaps(read_start, read_stop, mge_dict))
+                            
+                        if remove_overlaps(chromo, read_start, read_stop, mge_dict):
+                            for name in mge_uid_dict[uid]:
+                                if name in mge_out_to_gff:
+                                    if uid not in mge_out_to_gff[name]['anchor_uid']:
+                                        mge_out_to_gff[name]['anchor_uid'].add(uid)
+                                        mge_out_to_gff[name]['anchor_total_q'] += mapq
+        
+        infile.close()
+    
+    return(mge_out_to_gff, mge_uid_dict)
+        
+if args.mge_file:
+    #TODO complete
+    
+    '''
+    get uids that map to mge regions
+    
+    
+    extract split and get fasta
+    mge_file = args.mge_file
+    
+    bashCommand = ('blastn -task "blastn-short" -query {} -subject {fa_file} -outfmt 15 -out {}').format(cluster_seq_name, json_short_file_name, fa_file=fa_file)
+    output_handler(subprocess.run([bashCommand],stderr=subprocess.STDOUT,shell=True))
+    gff_list_dict, gff_rank_dict, blast_read_aligned_sections_dict, blast_genome_aligned_regions_dict, gff_uid_dict = gff_from_json(json_short_file_name, contig_seq_dict, gff_list_dict, gff_rank_dict, blast_read_aligned_sections_dict, blast_genome_aligned_regions_dict, gff_uid_dict)
+   
+    '''
+    outfile_name = args.outfile_name
+    
+    mge_dict, mge_out_to_gff = load_mge_file()
+    
+    mge_uid_dict = {}
+    
+    mge_out_to_gff, mge_uid_dict = parse_multimapper_for_mge(mge_dict, mge_out_to_gff, mge_uid_dict, outfile_name, 'phase_one')
+    mge_out_to_gff, mge_uid_dict = parse_multimapper_for_mge(mge_dict, mge_out_to_gff, mge_uid_dict, outfile_name, 'phase_two')
+                                    
+    mge_overlap_set = set()
+    
+    out_mge_gff_name = ('{outfile_name}_mugio_predicted_mge.gff').format(outfile_name=outfile_name)
+    out_mge_gff = open(out_mge_gff_name, 'w')
+                            
+    for name in mge_out_to_gff:
+        score = mge_out_to_gff[name]['total_q']
+        
+        is_uid = ''
+        for uid in mge_out_to_gff[name]['uid']:
+            is_uid += uid + ';'
+            
+        tea = 0
+        if (score >= 15) and (len(mge_out_to_gff[name]['uid']) > 3):
+            #print(name, mge_out_to_gff[name]['anchor_total_q'], mge_out_to_gff[name]['anchor_uid'] )
+            
+            if (mge_out_to_gff[name]['anchor_total_q'] >= 15) and (len(mge_out_to_gff[name]['anchor_uid']) > 3):
+                tea = 1
+                #print(mge_out_to_gff[name])
+                for uid in mge_out_to_gff[name]:
+                    mge_overlap_set.add(uid)
+                
+                #print('TRUE', name, mge_out_to_gff[name])
+        if args.return_all:    
+            gff_outline = ('{chromo}\tmugio\tcandidate_mge\t'
+                           '{start}\t{stop}\t{tea}\t.\t.\t'
+                           'ID={name}; score={score}; mge={tea}; is uid={is_uid}\n').format(
+                               chromo = mge_out_to_gff[name]['chromo'], 
+                               start = mge_out_to_gff[name]['start'],
+                               stop = mge_out_to_gff[name]['stop'],
+                               name = name,
+                               score = mge_out_to_gff[name]['total_q'],
+                               tea = tea,
+                               is_uid = is_uid)
+            
+            out_mge_gff.write(gff_outline)
+        else:
+            if tea == 1:
+                gff_outline = ('{chromo}\tmugio\tcandidate_mge\t'
+                               '{start}\t{stop}\t{tea}\t.\t.\t'
+                               'ID={name}; score={score}; mge={tea}\n').format(
+                                   chromo = mge_out_to_gff[name]['chromo'], 
+                                   start = mge_out_to_gff[name]['start'],
+                                   stop = mge_out_to_gff[name]['stop'],
+                                   name = name,
+                                   score = mge_out_to_gff[name]['total_q'],
+                                   tea = tea)
+                
+                out_mge_gff.write(gff_outline)
+                
+                
+    out_mge_gff.close()
+                    
+    out_mm_sam_name = ('{outfile_name}_multimapper').format(outfile_name=outfile_name)
+    #out_mm_file = open(out_mm_sam_name +'.sam', 'w')
+                                   
+    infile_name = out_mm_sam_name + '.sam'
+    infile = open(infile_name)
+    
+    out_tea_sam_name = ('{outfile_name}_mge').format(outfile_name=outfile_name)
+    out_tea_file = open(out_tea_sam_name +'.sam', 'w')
+    
+    for line in infile:
+        if line[0] == '@':
+            out_tea_file.write(line)
+        
+        if line[0] != '@':
+            uid = line.split('\t')[0]
+            if uid in mge_overlap_set:
+                out_tea_file.write(line)
+            
+    infile.close()
+    out_tea_file.close()
+    
+    convert_sort(out_tea_sam_name)
+        
+    convert_sort(out_mm_sam_name)
+    convert_sort(outsam_name)
+    convert_sort(out_st_sam_name)
+    convert_sort(out_un_sam_name)
+    
+    
+    
+if args.get_seq:
+    #--get_seq --fastqfile_name --outfile_name --nt_min --nt_max
+    
+    infile = open(args.fastqfile_name)
+    outfile_name = ('{}_min-{}_max-{}.fa').format(args.outfile_name,
+                                          args.nt_min, args.nt_max)
+    
+    outfile = open(outfile_name, 'w')
+    
+    for line in infile:
+        if '>' == line[0]:
+            line_header = line.split('>')[1].strip()
+            header = ('>{}_{}_{}\n').format(line_header, args.fastqfile_name, outfile_name)
+        else:
+            line_str = line.strip()
+            
+            if args.nt_min and args.nt_max:
+                return_str = line_str[int(args.nt_min):int(args.nt_max)]
+        
+            if args.nt_min and not args.nt_max:
+                return_str = line_str[int(args.nt_min):] 
+        
+            if not args.nt_min and args.nt_max:
+                return_str = line_str[:int(args.nt_max)]
+                
+            if not args.nt_min and not args.nt_max:
+                return_str = line_str
+                
+            outfile.write(header)
+            outfile.write(return_str)
+        
+if args.get_contig:
+    infile = open(args.fastqfile_name)
+    contig_name = args.name
+    outfile_name = ('{}_contig-{}_min-{}_max-{}.fa').format(args.outfile_name,
+                                          contig_name, args.nt_min, args.nt_max)
+    
+    outfile = open(outfile_name, 'w')
+    writeout =  False
+    
+    writeout_dict = {}
+    
+    for line in infile:
+        if line[0] == '>':
+            if contig_name in line:
+                writeout = True
+                name = line.strip()
+                writeout_dict[name]=''
+                
+            else:
+                writeout = False
+                
+        if writeout: 
+            if name != line.strip():
+                seq = line.strip()
+                writeout_dict[name]+=seq
+                        
+    infile.close()
+    
+    for name in writeout_dict:
+        if args.nt_min and args.nt_max:
+            return_str = writeout_dict[name][int(args.nt_min):int(args.nt_max)]
+    
+        if args.nt_min and not args.nt_max:
+            return_str = writeout_dict[name][int(args.nt_min):] 
+    
+        if not args.nt_min and args.nt_max:
+            return_str = writeout_dict[name][:int(args.nt_max)]
+            
+        if not args.nt_min and not args.nt_max:
+            return_str = writeout_dict[name]
+        
+        outline = ('{}\n{}\n').format(name, return_str)
+        outfile.write(outline)
+    
+    outfile.close()
+    
+    print('Contig file: ', outfile_name)
+
+
+if args.read_filter:
+    
+    def keep_uid_from_fastq(keep_set):
+        fastq_file = open(args.fastqfile_name)
+        output_file = open(args.outfile_name, 'w')
+        
+        ct = 0
+        for line in fastq_file:
+            if ct == 0:
+                if line[0] == '@':
+                    process = False
+                    uid = line.split('@')[1].split(' ')[0].strip()
+                    if uid in keep_set:
+                        process = True
+                        
+                else:
+                    print('error in fastq, malformed entry')
+                
+            if process:
+                output_file.write(line)
+            
+            ct+=1
+            if ct >= 4:
+                ct == 0
+                
+        fastq_file.close()
+        output_file.close()
+    
+    filter_list_file = open(args.filter_list_file)
+    
+    filter_set = set()
+    for line in filter_list_file:
+        if line[0] != '#':
+            filter_set.add(line.strip())
+            
+    
+    sam_file = open(args.samfile_name)
+    keep_set= set()
+    for line in sam_file:
+        if line[0]!='@':
+            if line.split('\t')[2] in filter_set:
+                uid = line.split('\t')[0]
+                keep_set.add(uid)
+    
+    keep_uid_from_fastq(keep_set)
+
+    
+if args.assign_from_lift_off:
+    original_uid_to_chromo_dict = {}
+    
+    gff_file = open(args.gff_file)
+    for line in gff_file:
+        if line[0] != '#':
+            if (line.split('\t')[2] == 'mRNA') or (line.split('\t')[2] == 'CDS') or (line.split('\t')[2] == 'rRNA') :
+                if ('gag' not in line) and ('hypothetical' not in line):
+                    chromo = line.split('\t')[0]
+                    uid = line.split('\t')[8].split('=')[1].split(';')[0]
+                    
+                    original_uid_to_chromo_dict[uid] = chromo
+                
+    gff_file.close()
+    
+    lift_contig_to_dict = {}
+    
+    gff_file = open(args.lift_gff)
+    for line in gff_file:
+        if line[0] != '#':
+            #if (line.split('\t')[2] == 'mRNA') or (line.split('\t')[2] == 'CDS'):
+                contig = line.split('\t')[0]
+                uid = line.split('\t')[8].split('=')[1].split(';')[0].split('_')[0]
+                if uid in original_uid_to_chromo_dict:
+                    chromo = original_uid_to_chromo_dict[uid]
+                    
+                    if contig not in lift_contig_to_dict:
+                        lift_contig_to_dict[contig] = {'total':set()}
+                        
+                    if chromo not in lift_contig_to_dict[contig]:
+                        lift_contig_to_dict[contig][chromo] = set()
+                        
+                    lift_contig_to_dict[contig][chromo].add(uid)
+                    lift_contig_to_dict[contig]['total'].add(uid)
+                
+    gff_file.close()
+    
+    outfile_name = args.outfile_name + '_pct_assigned.tab'
+    outfile = open(outfile_name, 'w')
+    minimum = int(args.minimum)
+    replace_dict = {}
+    
+    chromo_count_dict = {}
+    
+    for contig in lift_contig_to_dict:
+        value_line=''
+        
+        total = len(lift_contig_to_dict[contig]['total'])
+        
+        for chromo in lift_contig_to_dict[contig]:
+            if chromo != 'total':
+                ct = len(lift_contig_to_dict[contig][chromo])
+                pct = int(round(100*(ct/total),0))
+                chromo_line =('\t{chromo}:{ct}:{pct}').format(chromo=chromo, ct=ct, pct=pct)
+                value_line+=chromo_line
+                
+                if pct < minimum:
+                    print('-', contig, chromo, pct)
+                    tempfile_name = ('{outfile}_{contig}_{chromo}_uids.tab').format(
+                        outfile = args.outfile_name.split('.')[0],
+                        contig = contig,
+                        chromo = chromo)
+                    tempfile = open(tempfile_name,'w')
+                    
+                    for each in lift_contig_to_dict[contig][chromo]:
+                        tempfile.write(each)
+                    tempfile.close()
+                    
+                if pct >= minimum:
+                    print('+', contig, chromo, pct)
+                    replace_dict[contig] = chromo
+                    
+                    if chromo not in chromo_count_dict:
+                        chromo_count_dict[chromo] = 0
+                        
+                    chromo_count_dict[chromo] += 1
+            
+        outline = ('{contig}\t{total}{value_line}\n').format(contig=contig,
+                                                        total=total,
+                                                        value_line=value_line)   
+        outfile.write(outline)
+        
+    print('Percent assingments file: ', outfile_name)
+    outfile.close()
+        
+    ct = 0
+    if args.fastqfile_name:
+        outfile_name = args.outfile_name + '_relabelled.fa'
+        outfile = open(outfile_name, 'w')
+        
+        fastqfile = open(args.fastqfile_name)
+        
+        for line in fastqfile:
+            if line[0] == '>':
+                ct += 1
+                contig = line.split('>')[1].strip()
+                if contig in replace_dict:
+                    chromo = replace_dict[contig]
+                    if chromo == args.mito:
+                        replace_with_line = ('>Seq{ct} [organism={organism}]'
+                                             ' [isolate={isolate}] [location=mitochondrion]'
+                                             ' [chromosome={chromo}]\n').format(
+                                                 ct=ct,
+                                                 organism = args.organism,
+                                                 isolate = args.isolate,
+                                                 chromo = chromo)
+                    if chromo != args.mito:
+                        if chromo_count_dict[chromo] == 1:
+                            replace_with_line = ('>Seq{ct} [organism={organism}]'
+                                                 ' [isolate={isolate}] [location=chromosome]'
+                                                 ' [chromosome={chromo}]\n').format(
+                                                     ct=ct,
+                                                     organism = args.organism,
+                                                     isolate = args.isolate,
+                                                     chromo = chromo)
+                        
+                        if chromo_count_dict[chromo] != 1:
+                            replace_with_line = ('>Seq{ct} [organism={organism}]'
+                                                 ' [isolate={isolate}]'
+                                                 ' [chromosome={chromo}]\n').format(
+                                                     ct=ct,
+                                                     organism = args.organism,
+                                                     isolate = args.isolate,
+                                                     chromo = chromo)
+                            
+                if contig not in replace_dict:
+                    new_contig = ('{}{}_{}_{}').format(contig[:3], contig.split('_')[0][-5:], contig[-5:], ct)
+                    replace_with_line = ('>{new_contig} [organism={organism}]'
+                                         ' [isolate={isolate}]\n').format(
+                                             new_contig = new_contig,
+                                             organism = args.organism,
+                                             isolate = args.isolate)
+                outfile.write(replace_with_line)
+                
+            else:
+                outfile.write(line)
+        outfile.close()
+    
+        print('Assigned and Relabelled Fasta: ')
+        print(outfile_name)        
