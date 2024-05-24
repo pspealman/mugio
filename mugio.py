@@ -1517,7 +1517,7 @@ def length_function(brkpt, threshold_deets, first_fastq_dict, supplemental_align
                 tracert(uid, '\tresolved')
                 
             for uid in pvalue_uid:
-                tracert(uid, '\pvalue')
+                tracert(uid, '\tpvalue')
     
     rho, pval = stats.spearmanr(cor_lengths)
             
