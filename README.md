@@ -22,13 +22,8 @@ Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase tran
  Mugio reguires the following python packages:
 * numpy
 * scipy.stats
-* random
-* pickle
-* math
-* re
-* subprocess
+* matplotlib
 * pandas
-* json
 
 ## Installation
  Mugio is a stand alone python script as such it can be run locally by merely downloading the script. Installation through git clone is the preferred method.
