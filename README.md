@@ -46,7 +46,7 @@ Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase tran
 
 ## Quick Start pipeline for inverted repeat junction identification and evaluation
 
-1. Command --bprd (breakpoint retrieval and definition) 
+### Command --bprd (breakpoint retrieval and definition) 
  * Purpose: Identifies loci likely to be inverted repeat junctions associated with inverted duplications.
  * Format: 
  ```
@@ -59,7 +59,7 @@ Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase tran
  * Results:
  Identified likely candidates are recorded in the out_put path as a bed file with the suffix '_bprd'. Therefore if '-o demo_output/demo_bprd' the results will be stored in 'demo_output/demo_bprd_bprd.bed'
  
-2. Command --evaluate 
+### Command --evaluate 
  * Purpose: Calculates the correlation (Spearman's rho) between pre-breakpoint seqeunce length and post-breakpoint low scoring region length.
  * Format: 
  ```
@@ -70,7 +70,7 @@ Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase tran
  python mugio.py --evaluate -bpf demo_output/demo_bprd_bprd.bed -f demo/demo.fastq -s demo/demo.sam -o demo/demo_bprd_lengths
  ```
  * Results: 
- Identified candidates that have closed low-phred regions with have trace figures generated with low scoring regions identified. These will be saved in the out_path path as sub folders named after the inverted repeat junctions coordinates. 
+ Identified candidates that have closed low-phred regions with trace figures generated with low scoring regions identified. These will be saved in the out_path path as sub folders named after the inverted repeat junctions coordinates. 
 
 ## Optional modes 
 ### View phred score trace of a read (--plot_phred or -pp)
@@ -106,3 +106,16 @@ python mugio.py -cc -filter NC_001224.1 -f ont_DGY1657/BC01_1657.fastq -s ont_DG
 ```
  * Results: 
 Tab-delimited file containing rows for each scaffold, chromosome, as well as total (assumbed to be the genome). Columns are various metrics of the aligned read-depth.
+
+### Generate a discordant read bam file (--get_discordant or -get)
+ * Purpse: Ge
+ * Format:
+```
+python mugio.py --get -f <sample_fastq> -s <sample_aligned.sam> -pct <float> -o <output_prefix>
+```
+ * Demo:
+```
+python mugio.py --get_discordant -f fastq/DGY1726.fastq -s bam/DNA_DGY1726.sam -pct 0 -o mugio/DGY1726_1
+```
+ * Results:
+Any read that is over some percentage (-pct) of non-mapping nuceltotides will get extracted and resolved into a bam alignment file.
