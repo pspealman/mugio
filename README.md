@@ -2,6 +2,12 @@
  Inverted Repeat Junction identifier for use with ONT (MinION) sequencing.
 
  Mugio is intended to aid in the identification of potential inverted repeats in seqeuncing data from Oxford-Nanopore Technologies Nanopore seqeuncing platform (MinION, PromethION, GridION, etc.).
+
+_Important note for NYU HPC users:
+ You can load all necessary modules via:_
+ ```
+ source demo/module_load.sh
+ ```
  
 #### Citation
 Spealman P, Burrell J, Gresham D. Inverted duplicate DNA sequences increase translocation rates through sequencing nanopores resulting in reduced base calling accuracy. Nucleic Acids Res. 2020 May 21;48(9):4940-4945. doi: 10.1093/nar/gkaa206. PMID: 32255181; PMCID: PMC7229812.
