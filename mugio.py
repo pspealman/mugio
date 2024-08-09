@@ -2039,7 +2039,7 @@ if args.breakpoint_retrieval_and_definition:
                     prev_reads = eval_brkpts[anchor_uid]
 
                     # greater than 1.25-fold or 0.22314355131420976 = np.log(125/100)
-                    results = stats.binomtest(prev_reads, reads)
+                    results = stats.binomtest(prev_reads, (reads+prev_reads))
                     check_1 = results.pvalue
                     check_2 = abs(np.log(prev_reads/float(reads)))
                     
