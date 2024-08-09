@@ -36,6 +36,9 @@ Version 1.7 - 05.05.22 - (Moon Abbey)
     _x_ Added get_contig
     _x_ Added fastq2fasta
     _x_ Added assign_from_lift_off
+
+Version 1.7.1 - 08.09.2024 (acterin)
+    _x_ Updated deprecated scipy.stats.binom_test to binomtest
     
 module load minimap2/2.22
 module load miniasm/0.3
